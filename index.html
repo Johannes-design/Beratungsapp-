@@ -392,6 +392,33 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
   </div>
   <div class="zoom-hint" id="zoomHint">Doppeltippen oder Pinch zum Zoomen</div>
 </div>
+<!-- Edit Product Modal -->
+<div class="edit-modal-overlay" id="editProdModal" onclick="if(event.target===this)closeEditProd()">
+  <div class="edit-modal">
+    <div class="edit-modal-header"><h3>Produkt bearbeiten</h3><button class="modal-close" onclick="closeEditProd()" style="position:static;width:32px;height:32px;font-size:1rem;background:var(--warm-gray);color:var(--text-dark)">✕</button></div>
+    <div class="edit-modal-body">
+      <div class="form-group"><label>Kategorie</label><select id="editProdCat" onchange="onEditProdCatChange()"></select></div>
+      <div class="form-group" id="editProdSubcatGroup" style="display:none"><label>Unterkategorie</label><select id="editProdSubcat"></select></div>
+      <div class="form-group"><label>Name</label><input type="text" id="editProdName"></div>
+      <div class="form-group"><label>Preis</label><input type="text" id="editProdPrice" placeholder="z.B. ab 120 €"></div>
+      <div class="form-group"><label>Beschreibung</label><textarea id="editProdDesc"></textarea></div>
+      <div class="form-group">
+        <label>Bild</label>
+        <img id="editProdCurrentImg" class="current-img" style="display:none">
+        <div class="file-upload" style="padding:1rem">
+          <input type="file" accept="image/*" id="editProdImage" onchange="previewFile(this,'editProdPreview')">
+          <p style="font-size:0.82rem">Neues Bild wählen (optional)</p>
+          <img id="editProdPreview" class="preview-img" style="display:none">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="closeEditProd()">Abbrechen</button>
+        <button class="btn btn-gold" onclick="saveEditProd()">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <footer><p>&copy; 2026 Bestattungshaus Kallwaß · <a href="#" onclick="navTo('admin');return false">Verwaltung</a></p></footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -626,6 +653,57 @@ async function addProduct(){
   toast('Produkt hinzugefügt!','success');
 }
 async function deleteProduct(id){if(!confirm('Produkt wirklich löschen?'))return;await db.collection('products').doc(id).delete();toast('Produkt gelöscht')}
+
+/* === ADMIN: EDIT PRODUCT === */
+var editingProdId=null;
+function openEditProd(id){
+  var prod=products.find(function(p){return p.id===id});if(!prod)return;
+  editingProdId=id;
+  var sel=document.getElementById('editProdCat');
+  sel.innerHTML=categories.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
+  sel.value=prod.categoryId;
+  onEditProdCatChange(prod.subcategory||'');
+  document.getElementById('editProdName').value=prod.name||'';
+  document.getElementById('editProdPrice').value=prod.price||'';
+  document.getElementById('editProdDesc').value=prod.description||'';
+  var curImg=document.getElementById('editProdCurrentImg');
+  if(prod.imageUrl){curImg.src=prod.imageUrl;curImg.style.display='block'}else{curImg.style.display='none'}
+  document.getElementById('editProdImage').value='';
+  document.getElementById('editProdPreview').style.display='none';
+  document.getElementById('editProdModal').classList.add('active');document.body.style.overflow='hidden';
+}
+function closeEditProd(){
+  document.getElementById('editProdModal').classList.remove('active');document.body.style.overflow='';editingProdId=null;
+}
+function onEditProdCatChange(preselect){
+  var catId=document.getElementById('editProdCat').value;
+  var cat=categories.find(function(c){return c.id===catId});
+  var group=document.getElementById('editProdSubcatGroup'),sel=document.getElementById('editProdSubcat');
+  if(cat&&cat.hasSubcategories&&cat.subcategories&&cat.subcategories.length>0){
+    sel.innerHTML='<option value="">Keine Unterkategorie</option>'+cat.subcategories.map(function(sc){return '<option value="'+esc(sc)+'">'+esc(sc)+'</option>'}).join('');
+    if(preselect)sel.value=preselect;
+    group.style.display='block';
+  }else{group.style.display='none';sel.innerHTML=''}
+}
+async function saveEditProd(){
+  if(!editingProdId)return;
+  var name=document.getElementById('editProdName').value.trim();
+  if(!name)return toast('Name darf nicht leer sein','error');
+  var catId=document.getElementById('editProdCat').value;
+  if(!catId)return toast('Bitte Kategorie wählen','error');
+  var updates={
+    name:name,
+    categoryId:catId,
+    price:document.getElementById('editProdPrice').value.trim(),
+    description:document.getElementById('editProdDesc').value.trim()
+  };
+  var subcat=document.getElementById('editProdSubcat').value;
+  if(subcat){updates.subcategory=subcat}else{updates.subcategory=firebase.firestore.FieldValue.delete()}
+  var fi=document.getElementById('editProdImage');
+  if(fi.files[0]){updates.imageUrl=await uploadImage(fi.files[0],'products')}
+  await db.collection('products').doc(editingProdId).update(updates);
+  closeEditProd();toast('Produkt aktualisiert!','success');
+}
 function renderAdminProducts(){
   const list=document.getElementById('adminProdList');if(!list)return;
   const fc=document.getElementById('prodFilterCat')?.value||'';
@@ -633,7 +711,7 @@ function renderAdminProducts(){
   if(!filtered.length){list.innerHTML='<li style="text-align:center;color:var(--text-muted);font-size:0.9rem;display:block;padding:1rem">Keine Produkte</li>';return}
   list.innerHTML=filtered.map(prod=>{
     const cat=categories.find(c=>c.id===prod.categoryId);
-    return '<li><div class="item-info">'+(prod.imageUrl?'<img class="item-thumb" src="'+prod.imageUrl+'">':'<div class="item-thumb"></div>')+'<div><div class="item-name">'+esc(prod.name)+'</div><div style="font-size:0.75rem;color:var(--text-light)">'+(cat?cat.name:'–')+(prod.subcategory?' · '+prod.subcategory:'')+' '+(prod.price?'· '+prod.price:'')+'</div></div></div><div class="item-actions"><button class="del" onclick="deleteProduct(\''+prod.id+'\')" title="Löschen">🗑</button></div></li>';
+    return '<li><div class="item-info">'+(prod.imageUrl?'<img class="item-thumb" src="'+prod.imageUrl+'">':'<div class="item-thumb" style="display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--text-light)">📷</div>')+'<div><div class="item-name">'+esc(prod.name)+'</div><div style="font-size:0.75rem;color:var(--text-light)">'+(cat?cat.name:'–')+(prod.subcategory?' · '+prod.subcategory:'')+' '+(prod.price?'· '+prod.price:'')+'</div></div></div><div class="item-actions"><button onclick="openEditProd(\''+prod.id+'\')" title="Bearbeiten">✏️</button><button class="del" onclick="deleteProduct(\''+prod.id+'\')" title="Löschen">🗑</button></div></li>';
   }).join('');
 }
 
@@ -817,7 +895,7 @@ function updateZoomTransform(){
     },{passive:false});
   },500);
 })();
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeZoom();closeModal();closeEditCat();closeMobileNav()}if(e.key==='Enter'&&document.activeElement?.id==='loginPassword')doLogin()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeZoom();closeModal();closeEditCat();closeEditProd();closeMobileNav()}if(e.key==='Enter'&&document.activeElement?.id==='loginPassword')doLogin()});
 </script>
 </body>
 </html>
