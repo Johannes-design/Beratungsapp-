@@ -483,10 +483,19 @@ if('serviceWorker' in navigator){
 }
 
 /* === ONLINE/OFFLINE INDIKATOR === */
+let offlineBadgeTimer=null;
 function updateOnlineState(){
   const badge=document.getElementById('offlineBadge');
-  if(navigator.onLine){badge.classList.remove('show')}
-  else{badge.classList.add('show')}
+  if(offlineBadgeTimer){clearTimeout(offlineBadgeTimer);offlineBadgeTimer=null}
+  if(navigator.onLine){
+    badge.classList.remove('show');
+  } else {
+    // Kurz anzeigen, dann automatisch ausblenden
+    badge.classList.add('show');
+    offlineBadgeTimer=setTimeout(()=>{
+      badge.classList.remove('show');
+    },3000);
+  }
 }
 window.addEventListener('online',updateOnlineState);
 window.addEventListener('offline',updateOnlineState);
