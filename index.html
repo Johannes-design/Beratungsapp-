@@ -437,7 +437,27 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('sw.js').then(reg=>{
       console.log('SW registered',reg.scope);
+      // Update-Check bei neuem Aufruf
+      reg.update();
+      reg.addEventListener('updatefound',()=>{
+        const nw=reg.installing;
+        if(nw){
+          nw.addEventListener('statechange',()=>{
+            if(nw.state==='installed'&&navigator.serviceWorker.controller){
+              // Neue Version verfügbar – sanftes Update
+              nw.postMessage({type:'SKIP_WAITING'});
+            }
+          });
+        }
+      });
     }).catch(e=>console.log('SW error',e));
+    // Wenn neuer SW Kontrolle übernimmt: einmal reloaden
+    let refreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(refreshing)return;
+      refreshing=true;
+      window.location.reload();
+    });
   });
 }
 
@@ -466,13 +486,14 @@ async function preloadAllImages(showStatus){
   if(showStatus||!preloadDone)status.classList.add('show');
   let done=0;const total=urls.size;
   text.textContent='Bilder werden gespeichert: 0 / '+total;
-  // Parallele Downloads in Batches von 6
+  // Parallele Downloads in Batches von 4 (sanfter für mobile Netze)
   const arr=Array.from(urls);
-  const batchSize=6;
+  const batchSize=4;
   for(let i=0;i<arr.length;i+=batchSize){
     const batch=arr.slice(i,i+batchSize);
     await Promise.all(batch.map(url=>
-      fetch(url,{mode:'cors',cache:'reload'}).catch(()=>null).finally(()=>{
+      // no-cors: damit iOS Safari opaque responses cachen kann
+      fetch(url,{mode:'no-cors',credentials:'omit'}).catch(()=>null).finally(()=>{
         done++;
         text.textContent='Bilder werden gespeichert: '+done+' / '+total;
       })
@@ -521,7 +542,9 @@ window.addEventListener('DOMContentLoaded',()=>{
     const b1=document.getElementById('adminNavBtn'),b2=document.getElementById('adminNavBtnMobile');
     if(b1)b1.textContent=lbl;if(b2)b2.textContent=lbl;
   });
-  setTimeout(()=>document.getElementById('loading-screen').classList.add('hidden'),600);
+  setTimeout(()=>document.getElementById('loading-screen').classList.add('hidden'),categories.length>0?200:600);
+  // Wenn schon Daten aus Cache: gleich Pre-Loading anstoßen (nach 1.5s)
+  if(categories.length>0||products.length>0){setTimeout(()=>schedulePreload(),1500)}
 });
 
 function navTo(pageId){
