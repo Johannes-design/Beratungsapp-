@@ -300,6 +300,7 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
         <div class="form-group"><label>E-Mail</label><input type="email" id="loginEmail" placeholder="admin@bh-kallwass.de" autocomplete="email"></div>
         <div class="form-group"><label>Passwort</label><input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"></div>
         <button class="btn btn-primary" onclick="doLogin()" id="loginBtn">Anmelden</button>
+        <button type="button" onclick="forgotPassword()" style="background:none;border:none;color:var(--gold-dark);font-family:var(--font-body);font-size:0.85rem;cursor:pointer;display:block;margin:1rem auto 0;text-decoration:underline;-webkit-tap-highlight-color:transparent">Passwort vergessen?</button>
       </div>
     </div>
     <div id="adminDashboard" style="display:none">
@@ -312,6 +313,7 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
       <div class="admin-tabs">
         <button class="active" onclick="switchAdminTab('categories',this)">Kategorien</button>
         <button onclick="switchAdminTab('products',this)">Produkte</button>
+        <button onclick="switchAdminTab('account',this)">Konto</button>
       </div>
       <div id="tab-categories" class="admin-tab-content active">
         <div class="admin-section">
@@ -352,6 +354,25 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
           <h3>Produkte</h3>
           <div class="form-group"><label>Filter nach Kategorie</label><select id="prodFilterCat" onchange="renderAdminProducts()"><option value="">Alle</option></select></div>
           <ul class="admin-list" id="adminProdList"></ul>
+        </div>
+      </div>
+      <div id="tab-account" class="admin-tab-content">
+        <div class="admin-section">
+          <h3>Angemeldet als</h3>
+          <p style="font-size:0.95rem;color:var(--text-muted);margin-bottom:0.5rem"><span id="accountEmail" style="color:var(--bordeaux);font-weight:500"></span></p>
+        </div>
+        <div class="admin-section">
+          <h3>Passwort ändern</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Aus Sicherheitsgründen musst du dein aktuelles Passwort eingeben, bevor du es ändern kannst.</p>
+          <div class="form-group"><label>Aktuelles Passwort</label><input type="password" id="currentPw" autocomplete="current-password"></div>
+          <div class="form-group"><label>Neues Passwort (min. 6 Zeichen)</label><input type="password" id="newPw" autocomplete="new-password" minlength="6"></div>
+          <div class="form-group"><label>Neues Passwort bestätigen</label><input type="password" id="confirmPw" autocomplete="new-password" minlength="6"></div>
+          <button class="btn btn-gold" onclick="changePassword()" id="changePwBtn">Passwort ändern</button>
+        </div>
+        <div class="admin-section">
+          <h3>Reset-E-Mail anfordern</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Falls du das Passwort vergessen hast, lass dir per E-Mail einen Reset-Link senden.</p>
+          <button class="btn btn-outline" onclick="sendResetMail()">Reset-E-Mail an mich senden</button>
         </div>
       </div>
     </div>
@@ -541,6 +562,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     const lbl=li?'Verwaltung ●':'Verwaltung';
     const b1=document.getElementById('adminNavBtn'),b2=document.getElementById('adminNavBtnMobile');
     if(b1)b1.textContent=lbl;if(b2)b2.textContent=lbl;
+    const ae=document.getElementById('accountEmail');
+    if(ae&&user)ae.textContent=user.email;
   });
   setTimeout(()=>document.getElementById('loading-screen').classList.add('hidden'),categories.length>0?200:600);
   // Wenn schon Daten aus Cache: gleich Pre-Loading anstoßen (nach 1.5s)
@@ -628,6 +651,55 @@ async function doLogin(){
   btn.disabled=false;btn.textContent='Anmelden';
 }
 function doLogout(){auth.signOut();toast('Abgemeldet')}
+
+async function forgotPassword(){
+  const email=document.getElementById('loginEmail').value.trim();
+  if(!email)return toast('Bitte E-Mail eingeben','error');
+  try{
+    await auth.sendPasswordResetEmail(email);
+    toast('Reset-Mail wurde an '+email+' gesendet','success');
+  }catch(err){
+    if(err.code==='auth/user-not-found')toast('Diese E-Mail ist nicht registriert','error');
+    else if(err.code==='auth/invalid-email')toast('Ungültige E-Mail-Adresse','error');
+    else toast('Fehler: '+err.message,'error');
+  }
+}
+
+async function sendResetMail(){
+  if(!currentUser||!currentUser.email)return toast('Nicht angemeldet','error');
+  try{
+    await auth.sendPasswordResetEmail(currentUser.email);
+    toast('Reset-Mail wurde an '+currentUser.email+' gesendet','success');
+  }catch(err){toast('Fehler: '+err.message,'error')}
+}
+
+async function changePassword(){
+  if(!currentUser)return toast('Nicht angemeldet','error');
+  const cur=document.getElementById('currentPw').value;
+  const nw=document.getElementById('newPw').value;
+  const cf=document.getElementById('confirmPw').value;
+  if(!cur||!nw||!cf)return toast('Bitte alle Felder ausfüllen','error');
+  if(nw.length<6)return toast('Neues Passwort: mindestens 6 Zeichen','error');
+  if(nw!==cf)return toast('Passwörter stimmen nicht überein','error');
+  if(nw===cur)return toast('Neues Passwort muss sich vom aktuellen unterscheiden','error');
+  const btn=document.getElementById('changePwBtn');
+  btn.disabled=true;btn.textContent='Wird geändert…';
+  try{
+    const cred=firebase.auth.EmailAuthProvider.credential(currentUser.email,cur);
+    await currentUser.reauthenticateWithCredential(cred);
+    await currentUser.updatePassword(nw);
+    document.getElementById('currentPw').value='';
+    document.getElementById('newPw').value='';
+    document.getElementById('confirmPw').value='';
+    toast('Passwort erfolgreich geändert!','success');
+  }catch(err){
+    if(err.code==='auth/wrong-password'||err.code==='auth/invalid-credential')toast('Aktuelles Passwort ist falsch','error');
+    else if(err.code==='auth/weak-password')toast('Neues Passwort ist zu schwach','error');
+    else if(err.code==='auth/requires-recent-login')toast('Bitte erneut anmelden und nochmal versuchen','error');
+    else toast('Fehler: '+err.message,'error');
+  }
+  btn.disabled=false;btn.textContent='Passwort ändern';
+}
 
 async function addCategory(){
   const name=document.getElementById('catName').value.trim(),desc=document.getElementById('catDesc').value.trim();
