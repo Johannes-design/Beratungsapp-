@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#5A1A22">
 <title>Bestattungshaus Kallwaß – Beratung</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -30,6 +32,21 @@ body{font-family:var(--font-body);background:var(--cream);color:var(--text-dark)
 #loading-screen .logo-text{font-family:var(--font-display);font-size:2rem;color:var(--gold);letter-spacing:0.08em;font-weight:300;margin-bottom:1.5rem}
 .loader{width:40px;height:40px;border:2px solid rgba(197,165,90,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Offline-Indikator */
+.offline-badge{position:fixed;top:4.5rem;left:50%;transform:translateX(-50%);z-index:9000;background:#c0392b;color:#fff;padding:0.45rem 0.95rem;border-radius:20px;font-size:0.74rem;font-weight:600;display:none;align-items:center;gap:0.45rem;box-shadow:var(--shadow-md);letter-spacing:0.03em}
+.offline-badge.show{display:flex;animation:slideDown 0.3s ease}
+.offline-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1.6s ease-in-out infinite}
+@keyframes slideDown{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* Cache-Status (Pre-Loading) */
+.cache-status{position:fixed;bottom:1rem;left:50%;transform:translate(-50%,80px);z-index:8000;background:rgba(90,26,34,0.96);color:var(--cream);padding:0.6rem 1.1rem;border-radius:24px;font-size:0.76rem;font-weight:500;display:none;align-items:center;gap:0.6rem;box-shadow:var(--shadow-lg);opacity:0;transition:all 0.45s cubic-bezier(0.4,0,0.2,1);backdrop-filter:blur(12px);letter-spacing:0.02em;max-width:90vw}
+.cache-status.show{transform:translate(-50%,0);opacity:1;display:flex}
+.cache-status .mini-spin{width:11px;height:11px;border:1.5px solid rgba(197,165,90,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0}
+.cache-status.done .mini-spin{display:none}
+.cache-status.done::before{content:'✓';color:var(--gold);font-weight:700;font-size:0.95rem}
+
 header{position:sticky;top:0;z-index:100;background:rgba(90,26,34,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(197,165,90,0.2)}
 .header-inner{max-width:1200px;margin:0 auto;padding:0.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between}
 .brand{display:flex;align-items:center;gap:0.75rem;text-decoration:none;cursor:pointer}
@@ -69,15 +86,12 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .cat-card-body h3{font-family:var(--font-display);font-size:1.3rem;font-weight:500;color:var(--bordeaux);margin-bottom:0.3rem}
 .cat-card-body p{font-size:0.85rem;color:var(--text-muted);font-weight:300}
 .cat-card-count{position:absolute;top:1rem;right:1rem;background:rgba(90,26,34,0.85);color:var(--gold);font-size:0.75rem;padding:0.25rem 0.65rem;border-radius:20px;font-weight:600;backdrop-filter:blur(8px)}
-
-/* Subcategory selection on products page */
 .subcategory-bar{display:none;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap;padding-bottom:0.5rem}
 .subcategory-bar.visible{display:flex}
 .subcat-pill{padding:0.5rem 1.2rem;border-radius:24px;border:1.5px solid var(--warm-gray);background:var(--warm-white);font-family:var(--font-body);font-size:0.84rem;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-muted);-webkit-tap-highlight-color:transparent;box-shadow:var(--shadow-sm)}
 .subcat-pill:hover{border-color:var(--bordeaux);color:var(--bordeaux);box-shadow:var(--shadow-md)}
 .subcat-pill.active{background:var(--bordeaux);color:var(--cream);border-color:var(--bordeaux);box-shadow:var(--shadow-md)}
 .subcat-pill.all-pill{font-weight:600;font-size:0.78rem;letter-spacing:0.03em;text-transform:uppercase}
-
 .products-header{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
 .back-btn{background:none;border:1px solid var(--warm-gray);color:var(--text-dark);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-family:var(--font-body);font-size:0.85rem;transition:var(--transition);display:flex;align-items:center;gap:0.4rem;-webkit-tap-highlight-color:transparent}
 .back-btn:hover{border-color:var(--bordeaux);color:var(--bordeaux)}
@@ -92,8 +106,6 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .product-card-body .price{font-size:1rem;color:var(--gold-dark);font-weight:600;margin-bottom:0.4rem}
 .product-card-body .desc{font-size:0.82rem;color:var(--text-muted);line-height:1.55;font-weight:300}
 .product-card-body .subcat-tag{display:inline-block;font-size:0.72rem;color:var(--text-light);background:rgba(90,26,34,0.05);padding:0.15rem 0.5rem;border-radius:6px;margin-top:0.4rem}
-
-/* Modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
 .modal-overlay.active{display:flex}
 .modal{background:var(--warm-white);border-radius:var(--radius-lg);max-width:600px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-xl);animation:modalIn 0.3s ease;position:relative}
@@ -106,16 +118,12 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .modal-body .desc{font-size:0.92rem;color:var(--text-muted);line-height:1.7;font-weight:300;white-space:pre-line}
 .modal-close{position:absolute;top:1rem;right:1rem;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,0,0,0.5);color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:var(--transition);z-index:10}
 .modal-close:hover{background:rgba(0,0,0,0.7)}
-
-/* Edit Modal */
 .edit-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:600;display:none;align-items:flex-start;justify-content:center;padding:2rem 1rem;backdrop-filter:blur(4px);overflow-y:auto}
 .edit-modal-overlay.active{display:flex}
 .edit-modal{background:var(--warm-white);border-radius:var(--radius-lg);max-width:520px;width:100%;box-shadow:var(--shadow-xl);animation:modalIn 0.3s ease;position:relative;margin:auto}
 .edit-modal-header{padding:1.5rem 1.5rem 0;display:flex;align-items:center;justify-content:space-between}
 .edit-modal-header h3{font-family:var(--font-display);font-size:1.4rem;font-weight:500;color:var(--bordeaux)}
 .edit-modal-body{padding:1.5rem}
-
-/* Forms */
 .login-card{max-width:400px;margin:3rem auto;background:var(--warm-white);padding:2.5rem;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid rgba(90,26,34,0.08)}
 .login-card h2{font-family:var(--font-display);font-size:1.6rem;font-weight:400;color:var(--bordeaux);text-align:center;margin-bottom:0.5rem}
 .login-card .subtitle{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-bottom:2rem;font-weight:300}
@@ -131,8 +139,6 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .btn-sm{padding:0.5rem 1rem;font-size:0.82rem}
 .btn-row{display:flex;gap:0.75rem;margin-top:1.25rem}
 .btn-row .btn{flex:1}
-
-/* Admin */
 .admin-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:2rem}
 .admin-header h2{font-family:var(--font-display);font-size:1.8rem;font-weight:400;color:var(--bordeaux)}
 .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:2rem}
@@ -153,16 +159,12 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .item-actions button:hover{border-color:var(--bordeaux);color:var(--bordeaux)}
 .item-actions button.del:hover{border-color:#c0392b;color:#c0392b}
 .item-actions button[disabled]{opacity:0.3;cursor:default;pointer-events:none}
-
-/* Subcategory admin */
 .subcat-list{margin-top:0.5rem;padding-left:1.5rem;list-style:none}
 .subcat-list li{padding:0.35rem 0;font-size:0.88rem;display:flex;align-items:center;gap:0.3rem}
 .subcat-inline{display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;padding-left:1.5rem}
 .subcat-inline input{flex:1;padding:0.4rem 0.7rem;border:1.5px solid var(--warm-gray);border-radius:8px;font-family:var(--font-body);font-size:0.85rem;background:var(--cream)}
 .subcat-inline input:focus{outline:none;border-color:var(--gold)}
 .subcat-inline button{padding:0.4rem 0.8rem;border-radius:8px;border:none;background:var(--bordeaux);color:var(--cream);font-size:0.8rem;cursor:pointer;font-weight:600;white-space:nowrap}
-
-/* File Upload */
 .file-upload{border:2px dashed var(--warm-gray);border-radius:var(--radius);padding:2rem;text-align:center;cursor:pointer;transition:var(--transition);position:relative}
 .file-upload:hover{border-color:var(--gold);background:rgba(197,165,90,0.04)}
 .file-upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
@@ -170,8 +172,6 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .file-upload p{font-size:0.85rem;color:var(--text-muted)}
 .preview-img{max-width:200px;max-height:150px;border-radius:8px;margin-top:1rem;object-fit:cover}
 .current-img{max-width:120px;border-radius:8px;margin-bottom:0.75rem;border:1px solid var(--warm-gray)}
-
-/* Toast */
 .toast{position:fixed;bottom:2rem;right:2rem;z-index:9000;background:var(--bordeaux);color:var(--cream);padding:0.85rem 1.5rem;border-radius:10px;font-size:0.88rem;font-weight:500;box-shadow:var(--shadow-lg);transform:translateY(100px);opacity:0;transition:all 0.35s cubic-bezier(0.4,0,0.2,1)}
 .toast.show{transform:translateY(0);opacity:1}.toast.success{background:#27ae60}.toast.error{background:#c0392b}
 .empty-state{text-align:center;padding:3rem 1.5rem;color:var(--text-muted)}
@@ -195,7 +195,6 @@ footer p{font-size:0.78rem;color:var(--text-light);font-weight:300}
 footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decoration:underline}
 @media(max-width:640px){main{padding:1rem}.hero{padding:2rem 1rem 1.5rem}.categories-grid,.products-grid{grid-template-columns:1fr}.modal{margin:0.5rem;max-height:95vh}.modal-img{height:200px}.login-card{margin:1.5rem;padding:1.75rem}.admin-section{padding:1rem}.toast{left:1rem;right:1rem;bottom:1rem;text-align:center}.edit-modal-overlay{padding:1rem}.edit-modal{max-width:100%}}
 @media(min-width:769px) and (max-width:1024px){.categories-grid{grid-template-columns:repeat(2,1fr)}.products-grid{grid-template-columns:repeat(2,1fr)}}
-/* Search */
 .search-bar{position:relative;max-width:480px;margin:0 auto 1.5rem}
 .search-bar input{width:100%;padding:0.8rem 1rem 0.8rem 2.8rem;border:1.5px solid var(--warm-gray);border-radius:14px;font-family:var(--font-body);font-size:0.92rem;background:var(--warm-white);color:var(--text-dark);transition:var(--transition);box-shadow:var(--shadow-sm)}
 .search-bar input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,165,90,0.15)}
@@ -215,7 +214,6 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
 .sr-info .sr-name{font-weight:500;font-size:0.9rem;color:var(--text-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sr-info .sr-sub{font-size:0.76rem;color:var(--text-light)}
 .sr-no-results{padding:1.25rem;text-align:center;color:var(--text-muted);font-size:0.88rem}
-/* Zoom Viewer */
 .zoom-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:700;display:none;flex-direction:column;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 .zoom-overlay.active{display:flex}
 .zoom-close{position:absolute;top:1rem;right:1rem;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:710;transition:var(--transition)}
@@ -229,6 +227,8 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
 <body>
 <div id="loading-screen"><div class="logo-text">Bestattungshaus Kallwaß</div><div class="loader"></div></div>
 <div id="toast" class="toast"></div>
+<div class="offline-badge" id="offlineBadge">Offline</div>
+<div class="cache-status" id="cacheStatus"><span class="mini-spin"></span><span id="cacheStatusText">Bilder werden gespeichert…</span></div>
 <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileNav()"></div>
 <div class="mobile-drawer" id="mobileDrawer">
   <button class="drawer-close" onclick="closeMobileNav()">✕</button>
@@ -305,6 +305,10 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
     <div id="adminDashboard" style="display:none">
       <div class="admin-header"><h2>Verwaltung</h2><button class="btn btn-outline btn-sm" onclick="doLogout()">Abmelden</button></div>
       <div class="admin-stats" id="adminStats"></div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+        <button class="btn btn-outline btn-sm" onclick="manualPreload()" title="Bilder jetzt für Offline laden">📥 Bilder offline speichern</button>
+        <button class="btn btn-outline btn-sm" onclick="clearImageCache()" title="Bilder-Cache leeren">🗑 Cache leeren</button>
+      </div>
       <div class="admin-tabs">
         <button class="active" onclick="switchAdminTab('categories',this)">Kategorien</button>
         <button onclick="switchAdminTab('products',this)">Produkte</button>
@@ -353,13 +357,9 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
     </div>
   </div>
 </main>
-
-<!-- Product Detail Modal -->
 <div class="modal-overlay" id="productModal" onclick="if(event.target===this)closeModal()">
   <div class="modal"><button class="modal-close" onclick="closeModal()">✕</button><div class="modal-img" id="modalImg"></div><div class="modal-body"><h2 id="modalTitle"></h2><div class="price" id="modalPrice"></div><div class="desc" id="modalDesc"></div></div></div>
 </div>
-
-<!-- Edit Category Modal -->
 <div class="edit-modal-overlay" id="editCatModal" onclick="if(event.target===this)closeEditCat()">
   <div class="edit-modal">
     <div class="edit-modal-header"><h3>Kategorie bearbeiten</h3><button class="modal-close" onclick="closeEditCat()" style="position:static;width:32px;height:32px;font-size:1rem;background:var(--warm-gray);color:var(--text-dark)">✕</button></div>
@@ -384,7 +384,6 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
     </div>
   </div>
 </div>
-
 <div class="zoom-overlay" id="zoomOverlay" onclick="handleZoomClick(event)">
   <button class="zoom-close" onclick="closeZoom(event)">✕</button>
   <div class="zoom-container" id="zoomContainer">
@@ -392,7 +391,6 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
   </div>
   <div class="zoom-hint" id="zoomHint">Doppeltippen oder Pinch zum Zoomen</div>
 </div>
-<!-- Edit Product Modal -->
 <div class="edit-modal-overlay" id="editProdModal" onclick="if(event.target===this)closeEditProd()">
   <div class="edit-modal">
     <div class="edit-modal-header"><h3>Produkt bearbeiten</h3><button class="modal-close" onclick="closeEditProd()" style="position:static;width:32px;height:32px;font-size:1rem;background:var(--warm-gray);color:var(--text-dark)">✕</button></div>
@@ -418,7 +416,6 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
     </div>
   </div>
 </div>
-
 <footer><p>&copy; 2026 Bestattungshaus Kallwaß · <a href="#" onclick="navTo('admin');return false">Verwaltung</a></p></footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -435,15 +432,86 @@ let categories=[],products=[],currentUser=null,currentCategory=null,currentSubca
 function saveCache(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch(e){}}
 function loadCache(k){try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]}}
 
+/* === SERVICE WORKER === */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      console.log('SW registered',reg.scope);
+    }).catch(e=>console.log('SW error',e));
+  });
+}
+
+/* === ONLINE/OFFLINE INDIKATOR === */
+function updateOnlineState(){
+  const badge=document.getElementById('offlineBadge');
+  if(navigator.onLine){badge.classList.remove('show')}
+  else{badge.classList.add('show')}
+}
+window.addEventListener('online',updateOnlineState);
+window.addEventListener('offline',updateOnlineState);
+
+/* === IMAGE PRE-LOADING (für Offline-Zugriff) === */
+let preloadDone=false,preloadInProgress=false;
+async function preloadAllImages(showStatus){
+  if(preloadInProgress)return;
+  if(!navigator.onLine){if(showStatus)toast('Keine Verbindung – Bilder können nicht geladen werden','error');return}
+  const urls=new Set();
+  categories.forEach(c=>{if(c.imageUrl)urls.add(c.imageUrl)});
+  products.forEach(p=>{if(p.imageUrl)urls.add(p.imageUrl)});
+  if(urls.size===0)return;
+  preloadInProgress=true;
+  const status=document.getElementById('cacheStatus');
+  const text=document.getElementById('cacheStatusText');
+  status.classList.remove('done');
+  if(showStatus||!preloadDone)status.classList.add('show');
+  let done=0;const total=urls.size;
+  text.textContent='Bilder werden gespeichert: 0 / '+total;
+  // Parallele Downloads in Batches von 6
+  const arr=Array.from(urls);
+  const batchSize=6;
+  for(let i=0;i<arr.length;i+=batchSize){
+    const batch=arr.slice(i,i+batchSize);
+    await Promise.all(batch.map(url=>
+      fetch(url,{mode:'cors',cache:'reload'}).catch(()=>null).finally(()=>{
+        done++;
+        text.textContent='Bilder werden gespeichert: '+done+' / '+total;
+      })
+    ));
+  }
+  text.textContent='Alle '+total+' Bilder sind offline verfügbar';
+  status.classList.add('done');
+  setTimeout(()=>status.classList.remove('show'),3500);
+  preloadDone=true;preloadInProgress=false;
+}
+function manualPreload(){preloadAllImages(true)}
+async function clearImageCache(){
+  if(!confirm('Bilder-Cache wirklich leeren? Bilder werden danach erneut aus dem Netz geladen.'))return;
+  if('caches' in window){
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(k=>k.includes('images')).map(k=>caches.delete(k)));
+  }
+  preloadDone=false;
+  toast('Cache geleert','success');
+}
+let preloadTimer=null;
+function schedulePreload(){
+  if(preloadDone)return;
+  if(preloadTimer)clearTimeout(preloadTimer);
+  preloadTimer=setTimeout(()=>preloadAllImages(false),2500);
+}
+
 window.addEventListener('DOMContentLoaded',()=>{
   categories=loadCache('bk_cats');products=loadCache('bk_prods');renderCategories();
+  updateOnlineState();
   db.collection('categories').orderBy('order','asc').onSnapshot(snap=>{
     categories=snap.docs.map(d=>({id:d.id,...d.data()}));
     saveCache('bk_cats',categories);renderCategories();renderAdminCategories();updateCategorySelects();updateStats();
+    schedulePreload();
   },e=>console.log('Cat err:',e));
   db.collection('products').orderBy('createdAt','desc').onSnapshot(snap=>{
     products=snap.docs.map(d=>({id:d.id,...d.data()}));
     saveCache('bk_prods',products);if(currentCategory)renderProducts(currentCategory);renderAdminProducts();updateStats();
+    schedulePreload();
   },e=>console.log('Prod err:',e));
   auth.onAuthStateChanged(user=>{
     currentUser=user;const li=!!user;
@@ -456,7 +524,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>document.getElementById('loading-screen').classList.add('hidden'),600);
 });
 
-/* === NAVIGATION === */
 function navTo(pageId){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+pageId).classList.add('active');
@@ -466,7 +533,6 @@ function navTo(pageId){
 function openMobileNav(){document.getElementById('mobileDrawer').classList.add('open');document.getElementById('mobileOverlay').classList.add('active')}
 function closeMobileNav(){document.getElementById('mobileDrawer').classList.remove('open');document.getElementById('mobileOverlay').classList.remove('active')}
 
-/* === RENDER CATEGORIES (PUBLIC) === */
 function renderCategories(){
   const grid=document.getElementById('categoriesGrid');
   if(!categories.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">📋</div><p>Noch keine Kategorien angelegt.<br>Melden Sie sich in der Verwaltung an.</p></div>';return}
@@ -477,7 +543,6 @@ function renderCategories(){
   }).join('');
 }
 
-/* === OPEN CATEGORY WITH SUBCATEGORY PILLS === */
 function openCategory(catId){
   currentCategory=catId;currentSubcatFilter=null;
   const cat=categories.find(c=>c.id===catId);
@@ -508,7 +573,6 @@ function filterSubcat(subcat,btn){
   renderProducts(currentCategory);
 }
 
-/* === RENDER PRODUCTS (PUBLIC) === */
 function renderProducts(catId){
   const grid=document.getElementById('productsGrid');
   let filtered=products.filter(p=>p.categoryId===catId);
@@ -533,7 +597,6 @@ function openProductModal(idx,catId){
 }
 function closeModal(){document.getElementById('productModal').classList.remove('active');document.body.style.overflow=''}
 
-/* === AUTH === */
 async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim(),pw=document.getElementById('loginPassword').value;
   if(!email||!pw)return toast('Bitte E-Mail und Passwort eingeben','error');
@@ -543,7 +606,6 @@ async function doLogin(){
 }
 function doLogout(){auth.signOut();toast('Abgemeldet')}
 
-/* === ADMIN: ADD CATEGORY === */
 async function addCategory(){
   const name=document.getElementById('catName').value.trim(),desc=document.getElementById('catDesc').value.trim();
   const icon=document.getElementById('catIcon').value.trim(),hasSub=document.getElementById('catHasSubcats').checked;
@@ -555,10 +617,8 @@ async function addCategory(){
   toast('Kategorie hinzugefügt!','success');
 }
 
-/* === ADMIN: DELETE CATEGORY === */
 async function deleteCategory(id){if(!confirm('Kategorie wirklich löschen?'))return;await db.collection('categories').doc(id).delete();toast('Kategorie gelöscht')}
 
-/* === ADMIN: MOVE CATEGORY UP/DOWN === */
 async function moveCategory(id,direction){
   const idx=categories.findIndex(c=>c.id===id);
   const swapIdx=idx+direction;
@@ -569,7 +629,6 @@ async function moveCategory(id,direction){
   await batch.commit();
 }
 
-/* === ADMIN: EDIT CATEGORY MODAL === */
 function openEditCat(id){
   const cat=categories.find(c=>c.id===id);if(!cat)return;
   editingCatId=id;
@@ -602,7 +661,6 @@ async function saveEditCat(){
   closeEditCat();toast('Kategorie aktualisiert!','success');
 }
 
-/* === ADMIN: SUBCATEGORIES === */
 async function addSubcategory(catId){
   const input=document.getElementById('subcat-input-'+catId);const name=input.value.trim();if(!name)return;
   const cat=categories.find(c=>c.id===catId);const subs=[...(cat.subcategories||[])];
@@ -617,7 +675,6 @@ async function removeSubcategory(catId,subName){
   await db.collection('categories').doc(catId).update({subcategories:subs});toast('Unterkategorie entfernt');
 }
 
-/* === RENDER ADMIN CATEGORIES === */
 function renderAdminCategories(){
   const list=document.getElementById('adminCatList');if(!list)return;
   if(!categories.length){list.innerHTML='<li style="text-align:center;color:var(--text-muted);font-size:0.9rem;display:block;padding:1.5rem">Noch keine Kategorien</li>';return}
@@ -630,7 +687,6 @@ function renderAdminCategories(){
   }).join('');
 }
 
-/* === ADMIN: PRODUCTS === */
 function onProdCatChange(){
   const catId=document.getElementById('prodCat').value;
   const cat=categories.find(c=>c.id===catId);
@@ -654,7 +710,6 @@ async function addProduct(){
 }
 async function deleteProduct(id){if(!confirm('Produkt wirklich löschen?'))return;await db.collection('products').doc(id).delete();toast('Produkt gelöscht')}
 
-/* === ADMIN: EDIT PRODUCT === */
 var editingProdId=null;
 function openEditProd(id){
   var prod=products.find(function(p){return p.id===id});if(!prod)return;
@@ -715,7 +770,6 @@ function renderAdminProducts(){
   }).join('');
 }
 
-/* === HELPERS === */
 function updateCategorySelects(){
   ['prodCat','prodFilterCat'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const val=sel.value;const isF=id==='prodFilterCat';sel.innerHTML=(isF?'<option value="">Alle</option>':'<option value="">Kategorie wählen…</option>')+categories.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');sel.value=val});
 }
@@ -741,7 +795,7 @@ function compressImage(file,quality,maxW){
 function previewFile(input,id){const p=document.getElementById(id);if(input.files[0]){const r=new FileReader();r.onload=e=>{p.src=e.target.result;p.style.display='block'};r.readAsDataURL(input.files[0])}else p.style.display='none'}
 function toast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type;setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>t.classList.remove('show'),3000)}
 function esc(str){const d=document.createElement('div');d.textContent=str||'';return d.innerHTML}
-/* === SEARCH === */
+
 function onSearch(){
   var q=document.getElementById('searchInput').value.trim().toLowerCase();
   var res=document.getElementById('searchResults');
@@ -824,7 +878,7 @@ document.addEventListener('click',function(e){
   var sb=document.getElementById('searchBar');
   if(sb&&!sb.contains(e.target)){document.getElementById('searchResults').classList.remove('open')}
 });
-/* === ZOOM VIEWER === */
+
 let zoomLevel=1,zoomPosX=0,zoomPosY=0,isDragging=false,dragStartX=0,dragStartY=0,lastTap=0;
 function openZoom(imgSrc){
   if(!imgSrc)return;
