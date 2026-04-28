@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#5A1A22">
-<title>Bestattungshaus Kallwaß – Beratung</title>
+<title>Bestattungshaus Kallwass – Beratung</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -187,6 +187,24 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .admin-tabs button{padding:0.6rem 1.2rem;border-radius:10px;border:1.5px solid var(--warm-gray);background:transparent;font-family:var(--font-body);font-size:0.85rem;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-muted)}
 .admin-tabs button.active{background:var(--bordeaux);color:var(--cream);border-color:var(--bordeaux)}
 .admin-tabs button:hover:not(.active){border-color:var(--bordeaux);color:var(--bordeaux)}
+.bulk-warn{background:#FFF3CD;border:1.5px solid #FFC107;border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;color:#856404;font-size:0.88rem;line-height:1.6}
+.bulk-warn strong{color:#704D00}
+.bulk-danger{background:#F8D7DA;border:1.5px solid #DC3545;border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;color:#721C24;font-size:0.88rem;line-height:1.6}
+.bulk-result{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin:1rem 0}
+@media(max-width:768px){.bulk-result{grid-template-columns:1fr}}
+.bulk-col{background:var(--cream);border-radius:var(--radius);padding:0.75rem;border:1px solid var(--warm-gray);max-height:420px;overflow-y:auto}
+.bulk-col h4{font-family:var(--font-display);font-size:1.05rem;margin-bottom:0.6rem;padding-bottom:0.5rem;border-bottom:1px solid var(--warm-gray);position:sticky;top:0;background:var(--cream);z-index:2}
+.bulk-col.keep h4{color:#155724}
+.bulk-col.del h4{color:#721C24}
+.bulk-item{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border-radius:6px;margin-bottom:0.25rem;background:rgba(255,255,255,0.6);font-size:0.82rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.bulk-item:hover{background:rgba(255,255,255,1)}
+.bulk-item img{width:36px;height:36px;border-radius:4px;object-fit:cover;background:#eee;flex-shrink:0}
+.bulk-item .name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bulk-item .toggle-icon{font-size:1rem;flex-shrink:0;color:var(--text-muted)}
+.bulk-counter{font-size:0.78rem;color:var(--text-muted);margin-left:0.5rem;font-weight:400}
+.confirm-input{font-family:'Courier New',monospace;font-size:1rem;letter-spacing:0.1em;text-align:center;text-transform:uppercase}
+.btn-danger{background:#DC3545;color:#fff}.btn-danger:hover{background:#C82333}
+.btn-danger:disabled{background:#888;cursor:not-allowed;opacity:0.6}
 .admin-tab-content{display:none}.admin-tab-content.active{display:block;animation:fadeUp 0.3s ease}
 footer{text-align:center;padding:2rem 1.5rem;border-top:1px solid rgba(90,26,34,0.06);margin-top:3rem}
 footer p{font-size:0.78rem;color:var(--text-light);font-weight:300}
@@ -291,6 +309,7 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
       <div class="admin-tabs">
         <button class="active" onclick="switchAdminTab('categories',this)">Kategorien</button>
         <button onclick="switchAdminTab('products',this)">Produkte</button>
+        <button onclick="switchAdminTab('bulk',this)">Bulk-Aktionen</button>
         <button onclick="switchAdminTab('account',this)">Konto</button>
       </div>
       <div id="tab-categories" class="admin-tab-content active">
@@ -334,14 +353,66 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
           <ul class="admin-list" id="adminProdList"></ul>
         </div>
       </div>
-      <div id="tab-account" class="admin-tab-content">
+      <div id="tab-bulk" class="admin-tab-content">
+        <div class="bulk-warn">
+          <strong>⚠️ Achtung – Bulk-Aktionen sind unumkehrbar.</strong> Erstelle <strong>immer zuerst ein Backup</strong>, bevor du etwas löschst. Damit kannst du im Notfall die Produkte wiederherstellen.
+        </div>
+        <div class="admin-section">
+          <h3>Schritt 1 · Backup erstellen</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Lädt eine JSON-Datei mit ALLEN Produkten der gewählten Kategorie herunter. Bewahre sie sicher auf.</p>
+          <div class="form-group">
+            <label>Kategorie</label>
+            <select id="bulkCategory" onchange="onBulkCategoryChange()"></select>
+          </div>
+          <button class="btn btn-outline" onclick="bulkBackup()">📥 Backup als JSON herunterladen</button>
+        </div>
+        <div class="admin-section">
+          <h3>Schritt 2 · Behalten-Liste eingeben</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Gib die Artikelnummern oder Schlüsselwörter ein, die behalten werden sollen (eine pro Zeile). Alle Produkte, in denen <strong>einer dieser Begriffe</strong> im Namen oder in der Beschreibung steht, werden behalten. Alle anderen werden gelöscht.</p>
+          <div class="form-group">
+            <label>Begriffe (eine pro Zeile)</label>
+            <textarea id="bulkKeepList" rows="10" style="font-family:'Courier New',monospace;font-size:0.85rem" placeholder="2018&#10;1022-81-SK&#10;8602&#10;..."></textarea>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="loadTop50Urnen()">Top 50 Urnen einfügen</button>
+            <button class="btn btn-gold" onclick="bulkPreview()">Vorschau anzeigen</button>
+          </div>
+        </div>
+        <div class="admin-section" id="bulkPreviewSection" style="display:none">
+          <h3>Schritt 3 · Vorschau prüfen <span class="bulk-counter" id="bulkSummary"></span></h3>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem">Tippe auf einen Eintrag, um ihn manuell ins andere Feld zu verschieben.</p>
+          <div class="bulk-result">
+            <div class="bulk-col keep">
+              <h4>✓ Bleiben <span class="bulk-counter" id="bulkKeepCount"></span></h4>
+              <div id="bulkKeepGrid"></div>
+            </div>
+            <div class="bulk-col del">
+              <h4>✗ Werden gelöscht <span class="bulk-counter" id="bulkDelCount"></span></h4>
+              <div id="bulkDelGrid"></div>
+            </div>
+          </div>
+          <div class="bulk-danger" id="bulkLowMatchWarning" style="display:none">
+            <strong>⚠️ Wenig Treffer:</strong> Es wurden nur sehr wenige Begriffe in deinen Produkten gefunden. Möglicherweise sind die Artikelnummern in deinen Produkten nicht im Namen / in der Beschreibung gespeichert. <strong>Bitte prüfe die Vorschau sehr genau, bevor du löschst!</strong>
+          </div>
+        </div>
+        <div class="admin-section" id="bulkConfirmSection" style="display:none">
+          <h3>Schritt 4 · Löschung bestätigen</h3>
+          <div class="bulk-danger">
+            <strong>Letzte Warnung:</strong> Diese Aktion löscht <span id="bulkFinalCount" style="font-weight:700">0</span> Produkte dauerhaft aus der Datenbank UND aus dem Bilderspeicher. Sie kann <strong>nicht rückgängig gemacht werden</strong>.
+          </div>
+          <div class="form-group">
+            <label>Tippe „LÖSCHEN" ein, um zu bestätigen</label><input type="text" id="bulkConfirmInput" class="confirm-input" placeholder="LÖSCHEN" autocomplete="off" oninput="updateBulkDeleteBtn()"></div>
+          <button class="btn btn-danger" id="bulkDeleteBtn" onclick="bulkDelete()" disabled>🗑 Endgültig löschen</button>
+        </div>
+      </div>
+        <div id="tab-account" class="admin-tab-content">
         <div class="admin-section">
           <h3>Angemeldet als</h3>
           <p style="font-size:0.95rem;color:var(--text-muted);margin-bottom:0.5rem"><span id="accountEmail" style="color:var(--bordeaux);font-weight:500"></span></p>
         </div>
         <div class="admin-section">
           <h3>Passwort ändern</h3>
-          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Aus Sicherheitsgründen musst du dein aktuelles Passwort eingeben, bevor du es ändern kannst.</p>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6"¾Aus Sicherheitsgründen musst du dein aktuelles Passwort eingeben, bevor du es ändern kannst.</p>
           <div class="form-group"><label>Aktuelles Passwort</label><input type="password" id="currentPw" autocomplete="current-password"></div>
           <div class="form-group"><label>Neues Passwort (min. 6 Zeichen)</label><input type="password" id="newPw" autocomplete="new-password" minlength="6"></div>
           <div class="form-group"><label>Neues Passwort bestätigen</label><input type="password" id="confirmPw" autocomplete="new-password" minlength="6"></div>
@@ -562,7 +633,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     currentUser=user;const li=!!user;
     document.getElementById('adminLogin').style.display=li?'none':'block';
     document.getElementById('adminDashboard').style.display=li?'block':'none';
-    const lbl=li?'Verwaltung ●':'Verwaltung';
+    const lbl=li?'Verwaltung ✓':'Verwaltung';
     const b1=document.getElementById('adminNavBtn'),b2=document.getElementById('adminNavBtnMobile');
     if(b1)b1.textContent=lbl;if(b2)b2.textContent=lbl;
     const ae=document.getElementById('accountEmail');
@@ -708,6 +779,173 @@ async function changePassword(){
   btn.disabled=false;btn.textContent='Passwort ändern';
 }
 
+/* ====== BULK-AKTIONEN ====== */
+let bulkPreviewState={keepIds:new Set(),delIds:new Set(),catId:null};
+
+const TOP_50_URNEN=["2018","1022-81-SK","8602","1629","2/98F","1020","5010SKU","1021","1603","2050","2/36F","P1021L","P1020L","499850","2981","8110","2/80F","2/377671","P48FL","1030","9100","3422","861508","P8602L","P10FL","3460","P2018L","8606","2/76F","1630","P1603L","3430","1022-SK","2/51F","2/13F","2/11F","P1622L","9000","986-1KB","919-3","919","P1601L","912","6370","65-6000-4","2506","1624","3423","1529","3421"];
+
+function onBulkCategoryChange(){
+  // Vorschau zurücksetzen wenn Kategorie wechselt
+  document.getElementById('bulkPreviewSection').style.display='none';
+  document.getElementById('bulkConfirmSection').style.display='none';
+  bulkPreviewState={keepIds:new Set(),delIds:new Set(),catId:null};
+}
+
+function loadTop50Urnen(){
+  document.getElementById('bulkKeepList').value=TOP_50_URNEN.join('\n');
+  toast('Top 50 Urnen-Artikelnummern eingefügt','success');
+}
+
+function getBulkSelectedCategory(){
+  const sel=document.getElementById('bulkCategory');
+  if(!sel||!sel.value)return null;
+  return categories.find(c=>c.id===sel.value);
+}
+
+async function bulkBackup(){
+  const cat=getBulkSelectedCategory();
+  if(!cat)return toast('Bitte erst Kategorie wählen','error');
+  const items=products.filter(p=>p.categoryId===cat.id);
+  if(!items.length)return toast('Keine Produkte zum Sichern in dieser Kategorie','error');
+  const backup={
+    backupDate:new Date().toISOString(),
+    category:{id:cat.id,name:cat.name,description:cat.description,icon:cat.icon,imageUrl:cat.imageUrl,hasSubcategories:cat.hasSubcategories,subcategories:cat.subcategories},
+    products:items.map(p=>({id:p.id,name:p.name,price:p.price,description:p.description,imageUrl:p.imageUrl,subcategory:p.subcategory||null}))
+  };
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const safeName=cat.name.replace(/[^a-zA-Z0-9äöüÄÖÜß-]/g,'_');
+  a.download='Backup_'+safeName+'_'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Backup heruntergeladen ('+items.length+' Produkte)','success');
+}
+
+function bulkPreview(){
+  const cat=getBulkSelectedCategory();
+  if(!cat)return toast('Bitte erst Kategorie wählen','error');
+  const raw=document.getElementById('bulkKeepList').value;
+  const terms=raw.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length>0);
+  if(!terms.length)return toast('Bitte Begriffe eingeben','error');
+  const items=products.filter(p=>p.categoryId===cat.id);
+  if(!items.length)return toast('Keine Produkte in dieser Kategorie','error');
+  // Normalisierte Suchterme (lowercase)
+  const lcTerms=terms.map(t=>t.toLowerCase());
+  const keepIds=new Set();
+  const matchedTerms=new Set();
+  items.forEach(p=>{
+    const haystack=((p.name||'')+' '+(p.description||'')+' '+(p.subcategory||'')).toLowerCase();
+    for(const t of lcTerms){
+      if(haystack.includes(t)){keepIds.add(p.id);matchedTerms.add(t);break}
+    }
+  });
+  const delIds=new Set(items.filter(p=>!keepIds.has(p.id)).map(p=>p.id));
+  bulkPreviewState={keepIds,delIds,catId:cat.id};
+  renderBulkPreview();
+  document.getElementById('bulkPreviewSection').style.display='block';
+  document.getElementById('bulkSummary').textContent='('+keepIds.size+' / '+terms.length+' Begriffe haben gematcht)';
+  // Warnung wenn weniger als 30% der Begriffe matchen
+  const lowMatch=matchedTerms.size<terms.length*0.3;
+  document.getElementById('bulkLowMatchWarning').style.display=lowMatch?'block':'none';
+  // Confirm-Section nur zeigen wenn was zu löschen UND was zu behalten ist
+  if(delIds.size>0&&keepIds.size>0){
+    document.getElementById('bulkConfirmSection').style.display='block';
+    document.getElementById('bulkFinalCount').textContent=delIds.size;
+    document.getElementById('bulkConfirmInput').value='';
+    updateBulkDeleteBtn();
+  } else {
+    document.getElementById('bulkConfirmSection').style.display='none';
+    if(keepIds.size===0)toast('Achtung: KEIN Produkt matcht – Löschung blockiert','error');
+  }
+  // Smooth scroll zu Vorschau
+  setTimeout(()=>document.getElementById('bulkPreviewSection').scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+
+function renderBulkPreview(){
+  const items=products.filter(p=>p.categoryId===bulkPreviewState.catId);
+  const keepArr=items.filter(p=>bulkPreviewState.keepIds.has(p.id)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const delArr=items.filter(p=>bulkPreviewState.delIds.has(p.id)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  document.getElementById('bulkKeepCount').textContent='('+keepArr.length+')';
+  document.getElementById('bulkDelCount').textContent='('+delArr.length+')';
+  document.getElementById('bulkKeepGrid').innerHTML=keepArr.map(p=>renderBulkItem(p,true)).join('')||'<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem">– keine –</p>';
+  document.getElementById('bulkDelGrid').innerHTML=delArr.map(p=>renderBulkItem(p,false)).join('')||'<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem">– keine –</p>';
+}
+
+function renderBulkItem(p,isKeep){
+  const img=p.imageUrl?'<img src="'+p.imageUrl+'" loading="lazy">':'<div style="width:36px;height:36px;border-radius:4px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:0.9rem;color:#aaa;flex-shrink:0">⬚</div>';
+  const icon=isKeep?'→':'←';
+  return '<div class="bulk-item" onclick="toggleBulkItem(\''+p.id+'\')">'+img+'<div class="name">'+esc(p.name||'(ohne Name)')+'</div><div class="toggle-icon">'+icon+'</div></div>';
+}
+
+function toggleBulkItem(id){
+  if(bulkPreviewState.keepIds.has(id)){
+    bulkPreviewState.keepIds.delete(id);
+    bulkPreviewState.delIds.add(id);
+  } else {
+    bulkPreviewState.delIds.delete(id);
+    bulkPreviewState.keepIds.add(id);
+  }
+  renderBulkPreview();
+  document.getElementById('bulkFinalCount').textContent=bulkPreviewState.delIds.size;
+  if(bulkPreviewState.delIds.size===0||bulkPreviewState.keepIds.size===0){
+    document.getElementById('bulkConfirmSection').style.display='none';
+  } else {
+    document.getElementById('bulkConfirmSection').style.display='block';
+  }
+}
+
+function updateBulkDeleteBtn(){
+  const v=document.getElementById('bulkConfirmInput').value.trim().toUpperCase();
+  document.getElementById('bulkDeleteBtn').disabled=v!=='LÖSCHEN';
+}
+
+async function bulkDelete(){
+  const ids=Array.from(bulkPreviewState.delIds);
+  if(!ids.length)return toast('Nichts zu löschen','error');
+  if(!confirm('Wirklich '+ids.length+' Produkte unwiderruflich löschen?'))return;
+  const btn=document.getElementById('bulkDeleteBtn');
+  btn.disabled=true;
+  let done=0,errors=0;
+  // Vorab alle Bild-URLs sammeln
+  const itemsToDelete=products.filter(p=>bulkPreviewState.delIds.has(p.id));
+  // Firestore-Batches: max 500 pro Batch
+  const BATCH=400;
+  try{
+    for(let i=0;i<ids.length;i+=BATCH){
+      const slice=ids.slice(i,i+BATCH);
+      const batch=db.batch();
+      slice.forEach(id=>batch.delete(db.collection('products').doc(id)));
+      await batch.commit();
+      done+=slice.length;
+      btn.textContent='Lösche… '+done+' / '+ids.length;
+    }
+    // Bilder aus Storage löschen (parallel, 4er Batches, Fehler tolerieren)
+    btn.textContent='Lösche Bilder…';
+    const imgs=itemsToDelete.map(p=>p.imageUrl).filter(u=>u&&u.includes('firebasestorage'));
+    let imgDone=0;
+    for(let i=0;i<imgs.length;i+=4){
+      const batch=imgs.slice(i,i+4);
+      await Promise.all(batch.map(url=>
+        storage.refFromURL(url).delete().catch(()=>errors++).finally(()=>{
+          imgDone++;
+          btn.textContent='Lösche Bilder… '+imgDone+' / '+imgs.length;
+        })
+      ));
+    }
+    toast('Fertig: '+done+' Produkte gelöscht'+(errors?' ('+errors+' Bilder konnten nicht gelöscht werden)':''),'success');
+    document.getElementById('bulkPreviewSection').style.display='none';
+    document.getElementById('bulkConfirmSection').style.display='none';
+    bulkPreviewState={keepIds:new Set(),delIds:new Set(),catId:null};
+  } catch(err) {
+    toast('Fehler beim Löschen: '+err.message,'error');
+    console.error(err);
+  }
+  btn.textContent='🗑 Endgültig löschen';
+  btn.disabled=false;
+}
+
 async function addCategory(){
   const name=document.getElementById('catName').value.trim(),desc=document.getElementById('catDesc').value.trim();
   const icon=document.getElementById('catIcon').value.trim(),hasSub=document.getElementById('catHasSubcats').checked;
@@ -802,7 +1040,7 @@ async function addProduct(){
   const catId=document.getElementById('prodCat').value,name=document.getElementById('prodName').value.trim();
   const price=document.getElementById('prodPrice').value.trim(),desc=document.getElementById('prodDesc').value.trim();
   const subcat=document.getElementById('prodSubcat').value||null,fi=document.getElementById('prodImage');
-  if(!catId)return toast('Bitte Kategorie wählen','error');if(!name)return toast('Bitte Produktnamen eingeben','error');
+  if(!catId)return toast('Bitte Kategorie wählen','error');if(!name)return toast('Bitte Produktnamen eingeben',error');
   let imageUrl='';if(fi.files[0])imageUrl=await uploadImage(fi.files[0],'products');
   const data={categoryId:catId,name,price,description:desc,imageUrl,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   if(subcat)data.subcategory=subcat;
@@ -873,7 +1111,7 @@ function renderAdminProducts(){
 }
 
 function updateCategorySelects(){
-  ['prodCat','prodFilterCat'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const val=sel.value;const isF=id==='prodFilterCat';sel.innerHTML=(isF?'<option value="">Alle</option>':'<option value="">Kategorie wählen…</option>')+categories.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');sel.value=val});
+  ['prodCat','prodFilterCat','bulkCategory'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const val=sel.value;const isF=id==='prodFilterCat';const isB=id==='bulkCategory';sel.innerHTML=(isF?'<option value="">Alle</option>':(isB?'<option value="">Kategorie wählen…</option>':'<option value="">Kategorie wählen…</option>'))+categories.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');sel.value=val});
 }
 function switchAdminTab(tab,btn){
   document.querySelectorAll('.admin-tab-content').forEach(t=>t.classList.remove('active'));
