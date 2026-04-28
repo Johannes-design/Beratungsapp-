@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#5A1A22">
-<title>Bestattungshaus Kallwass – Beratung</title>
+<title>Bestattungshaus Kallwaß – Beratung</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -401,18 +401,20 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
             <strong>Letzte Warnung:</strong> Diese Aktion löscht <span id="bulkFinalCount" style="font-weight:700">0</span> Produkte dauerhaft aus der Datenbank UND aus dem Bilderspeicher. Sie kann <strong>nicht rückgängig gemacht werden</strong>.
           </div>
           <div class="form-group">
-            <label>Tippe „LÖSCHEN" ein, um zu bestätigen</label><input type="text" id="bulkConfirmInput" class="confirm-input" placeholder="LÖSCHEN" autocomplete="off" oninput="updateBulkDeleteBtn()"></div>
+            <label>Tippe „LÖSCHEN" ein, um zu bestätigen</label>
+            <input type="text" id="bulkConfirmInput" class="confirm-input" placeholder="LÖSCHEN" autocomplete="off" oninput="updateBulkDeleteBtn()">
+          </div>
           <button class="btn btn-danger" id="bulkDeleteBtn" onclick="bulkDelete()" disabled>🗑 Endgültig löschen</button>
         </div>
       </div>
-        <div id="tab-account" class="admin-tab-content">
+      <div id="tab-account" class="admin-tab-content">
         <div class="admin-section">
           <h3>Angemeldet als</h3>
           <p style="font-size:0.95rem;color:var(--text-muted);margin-bottom:0.5rem"><span id="accountEmail" style="color:var(--bordeaux);font-weight:500"></span></p>
         </div>
         <div class="admin-section">
           <h3>Passwort ändern</h3>
-          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6"¾Aus Sicherheitsgründen musst du dein aktuelles Passwort eingeben, bevor du es ändern kannst.</p>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Aus Sicherheitsgründen musst du dein aktuelles Passwort eingeben, bevor du es ändern kannst.</p>
           <div class="form-group"><label>Aktuelles Passwort</label><input type="password" id="currentPw" autocomplete="current-password"></div>
           <div class="form-group"><label>Neues Passwort (min. 6 Zeichen)</label><input type="password" id="newPw" autocomplete="new-password" minlength="6"></div>
           <div class="form-group"><label>Neues Passwort bestätigen</label><input type="password" id="confirmPw" autocomplete="new-password" minlength="6"></div>
@@ -633,7 +635,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     currentUser=user;const li=!!user;
     document.getElementById('adminLogin').style.display=li?'none':'block';
     document.getElementById('adminDashboard').style.display=li?'block':'none';
-    const lbl=li?'Verwaltung ✓':'Verwaltung';
+    const lbl=li?'Verwaltung ●':'Verwaltung';
     const b1=document.getElementById('adminNavBtn'),b2=document.getElementById('adminNavBtnMobile');
     if(b1)b1.textContent=lbl;if(b2)b2.textContent=lbl;
     const ae=document.getElementById('accountEmail');
@@ -874,7 +876,7 @@ function renderBulkPreview(){
 }
 
 function renderBulkItem(p,isKeep){
-  const img=p.imageUrl?'<img src="'+p.imageUrl+'" loading="lazy">':'<div style="width:36px;height:36px;border-radius:4px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:0.9rem;color:#aaa;flex-shrink:0">⬚</div>';
+  const img=p.imageUrl?'<img src="'+p.imageUrl+'" loading="lazy">':'<div style="width:36px;height:36px;border-radius:4px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:0.9rem;color:#aaa;flex-shrink:0">⚱</div>';
   const icon=isKeep?'→':'←';
   return '<div class="bulk-item" onclick="toggleBulkItem(\''+p.id+'\')">'+img+'<div class="name">'+esc(p.name||'(ohne Name)')+'</div><div class="toggle-icon">'+icon+'</div></div>';
 }
@@ -1040,7 +1042,7 @@ async function addProduct(){
   const catId=document.getElementById('prodCat').value,name=document.getElementById('prodName').value.trim();
   const price=document.getElementById('prodPrice').value.trim(),desc=document.getElementById('prodDesc').value.trim();
   const subcat=document.getElementById('prodSubcat').value||null,fi=document.getElementById('prodImage');
-  if(!catId)return toast('Bitte Kategorie wählen','error');if(!name)return toast('Bitte Produktnamen eingeben',error');
+  if(!catId)return toast('Bitte Kategorie wählen','error');if(!name)return toast('Bitte Produktnamen eingeben','error');
   let imageUrl='';if(fi.files[0])imageUrl=await uploadImage(fi.files[0],'products');
   const data={categoryId:catId,name,price,description:desc,imageUrl,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   if(subcat)data.subcategory=subcat;
