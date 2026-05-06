@@ -304,6 +304,7 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
       <div class="admin-stats" id="adminStats"></div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
         <button class="btn btn-outline btn-sm" onclick="manualPreload()" title="Bilder jetzt für Offline laden">📥 Bilder offline speichern</button>
+        <button class="btn btn-outline btn-sm" onclick="checkCacheStatus()" title="Cache-Status prüfen">🔍 Status prüfen</button>
         <button class="btn btn-outline btn-sm" onclick="clearImageCache()" title="Bilder-Cache leeren">🗑 Cache leeren</button>
       </div>
       <div class="admin-tabs">
@@ -552,70 +553,211 @@ window.addEventListener('online',updateOnlineState);
 window.addEventListener('offline',updateOnlineState);
 
 /* === IMAGE PRE-LOADING (für Offline-Zugriff) === */
-let preloadDone=false,preloadInProgress=false;
-const PRELOAD_LIMIT=80; // iPhone Safari hat ~50MB Cache-Limit
-async function preloadAllImages(showStatus){
+let preloadInProgress=false;
+let preloadedUrls=new Set(); // alle URLs die diese Session schon erfolgreich gefetched wurden
+
+// Prüft welche Bild-URLs noch NICHT im Cache liegen
+async function getMissingImageUrls(){
+  const allUrls=[];
+  categories.forEach(c=>{if(c.imageUrl)allUrls.push(c.imageUrl)});
+  products.forEach(p=>{if(p.imageUrl)allUrls.push(p.imageUrl)});
+  if(!('caches' in window))return allUrls;
+  const missing=[];
+  try{
+    // Alle Image-Caches öffnen
+    const cacheKeys=(await caches.keys()).filter(k=>k.includes('images'));
+    if(!cacheKeys.length)return allUrls;
+    for(const url of allUrls){
+      // Schon in dieser Session gefetched? → skip
+      if(preloadedUrls.has(url))continue;
+      let found=false;
+      for(const ck of cacheKeys){
+        const cache=await caches.open(ck);
+        const m=await cache.match(url);
+        if(m){found=true;break}
+      }
+      if(!found)missing.push(url);
+    }
+  }catch(e){console.log('Cache-Check Fehler',e);return allUrls}
+  return missing;
+}
+
+// Hauptfunktion: lädt fehlende Bilder, optional mit UI-Feedback
+// Hilfsfunktion: Cache-Referenz vom Service Worker holen
+async function getImageCache(){
+  try{
+    if('serviceWorker' in navigator)await navigator.serviceWorker.ready;
+  }catch(e){}
+  const keys=await caches.keys();
+  const cacheName=keys.find(k=>k.startsWith('bk-images-'))||'bk-images-v1.2.0';
+  return caches.open(cacheName);
+}
+
+async function preloadImages(opts){
+  opts=opts||{};
+  const showStatus=opts.showStatus===true;
+  const forceAll=opts.forceAll===true;
   if(preloadInProgress)return;
-  if(!navigator.onLine){if(showStatus)toast('Keine Verbindung – Bilder können nicht geladen werden','error');return}
-  const urls=new Set();
-  // Kategorien-Bilder zuerst (immer)
-  categories.forEach(c=>{if(c.imageUrl)urls.add(c.imageUrl)});
-  // Produkt-Bilder, sortiert nach createdAt (neueste zuerst)
-  const sortedProducts=[...products].sort((a,b)=>{
-    const at=a.createdAt&&a.createdAt.seconds?a.createdAt.seconds:0;
-    const bt=b.createdAt&&b.createdAt.seconds?b.createdAt.seconds:0;
-    return bt-at;
-  });
-  for(const p of sortedProducts){
-    if(urls.size>=PRELOAD_LIMIT)break;
-    if(p.imageUrl)urls.add(p.imageUrl);
+  if(!navigator.onLine){if(showStatus)toast('Keine Verbindung','error');return}
+  // Cache-Referenz holen (gleicher Cache wie der SW nutzt)
+  let imgCache;
+  try{imgCache=await getImageCache()}
+  catch(e){if(showStatus)toast('Cache-Storage nicht verfügbar','error');return}
+  let urls;
+  if(forceAll){
+    urls=[];
+    categories.forEach(c=>{if(c.imageUrl)urls.push(c.imageUrl)});
+    products.forEach(p=>{if(p.imageUrl)urls.push(p.imageUrl)});
+  } else {
+    urls=await getMissingImageUrls();
   }
-  if(urls.size===0)return;
+  if(urls.length===0){
+    if(showStatus){
+      const status=document.getElementById('cacheStatus');
+      const text=document.getElementById('cacheStatusText');
+      status.classList.add('done');
+      text.textContent='Alle Bilder sind bereits offline verfügbar';
+      status.classList.add('show');
+      setTimeout(()=>status.classList.remove('show'),2500);
+    }
+    return;
+  }
   preloadInProgress=true;
   const status=document.getElementById('cacheStatus');
   const text=document.getElementById('cacheStatusText');
   status.classList.remove('done');
-  if(showStatus||!preloadDone)status.classList.add('show');
-  let done=0;const total=urls.size;
+  const showVisualFeedback=showStatus||urls.length>5;
+  if(showVisualFeedback)status.classList.add('show');
+  let done=0,corsOk=0,opaqueOk=0,failed=0;
+  const total=urls.length;
   text.textContent='Bilder werden gespeichert: 0 / '+total;
-  // Parallele Downloads in Batches von 4 (sanfter für mobile Netze)
-  const arr=Array.from(urls);
+  // Parallele Downloads in Batches von 4
   const batchSize=4;
-  for(let i=0;i<arr.length;i+=batchSize){
-    const batch=arr.slice(i,i+batchSize);
-    await Promise.all(batch.map(url=>
-      // no-cors: damit iOS Safari opaque responses cachen kann
-      fetch(url,{mode:'no-cors',credentials:'omit'}).catch(()=>null).finally(()=>{
-        done++;
-        text.textContent='Bilder werden gespeichert: '+done+' / '+total;
-      })
-    ));
+  for(let i=0;i<urls.length;i+=batchSize){
+    const batch=urls.slice(i,i+batchSize);
+    await Promise.all(batch.map(async url=>{
+      try{
+        // 1. Versuch: CORS – Response zählt im Cache mit echter Größe (ca. 200KB)
+        const res=await fetch(url,{mode:'cors',credentials:'omit',cache:'reload'});
+        if(res.ok){
+          await imgCache.put(url,res);
+          preloadedUrls.add(url);
+          corsOk++;
+        } else {throw new Error('HTTP '+res.status)}
+      }catch(corsErr){
+        // 2. Versuch: no-cors – funktioniert immer, aber opaque (=7MB padded auf iOS)
+        try{
+          const res=await fetch(url,{mode:'no-cors',credentials:'omit',cache:'reload'});
+          await imgCache.put(url,res);
+          preloadedUrls.add(url);
+          opaqueOk++;
+        }catch(e2){
+          failed++;
+          console.log('Preload failed:',url,e2);
+        }
+      }
+      done++;
+      text.textContent='Bilder werden gespeichert: '+done+' / '+total;
+    }));
   }
-  const totalProducts=products.filter(p=>p.imageUrl).length;
-  if(totalProducts>PRELOAD_LIMIT-categories.filter(c=>c.imageUrl).length){
-    text.textContent='Die '+total+' wichtigsten Bilder sind offline verfügbar';
+  // Status-Text je nach Ergebnis
+  const success=corsOk+opaqueOk;
+  if(failed>0&&success===0){
+    text.textContent='⚠️ Bilder konnten nicht gespeichert werden';
+  } else if(failed>0){
+    text.textContent='Fertig: '+success+' / '+total+' Bilder ('+failed+' fehlgeschlagen)';
+  } else if(opaqueOk>0&&corsOk===0){
+    text.textContent=total+' Bilder gespeichert (Modus: ohne CORS)';
   } else {
-    text.textContent='Alle '+total+' Bilder sind offline verfügbar';
+    text.textContent=total===1?'1 Bild ist offline verfügbar':total+' Bilder sind offline verfügbar';
   }
   status.classList.add('done');
-  setTimeout(()=>status.classList.remove('show'),3500);
-  preloadDone=true;preloadInProgress=false;
+  if(showVisualFeedback)setTimeout(()=>status.classList.remove('show'),3500);
+  preloadInProgress=false;
+  console.log('Preload-Statistik:',{total,corsOk,opaqueOk,failed});
 }
-function manualPreload(){preloadAllImages(true)}
+
+// Manueller Button (Verwaltung)
+function manualPreload(){preloadImages({showStatus:true})}
+
+// Cache-Status anzeigen (Diagnose)
+async function checkCacheStatus(){
+  if(!('caches' in window))return alert('Browser unterstützt kein Cache-Storage');
+  const allUrls=[];
+  categories.forEach(c=>{if(c.imageUrl)allUrls.push({type:'Kategorie',name:c.name,url:c.imageUrl})});
+  products.forEach(p=>{if(p.imageUrl){
+    const cat=categories.find(c=>c.id===p.categoryId);
+    allUrls.push({type:'Produkt',name:p.name,url:p.imageUrl,catName:cat?cat.name:'?'});
+  }});
+  let cachedCount=0;
+  const cacheKeys=(await caches.keys()).filter(k=>k.includes('images'));
+  for(const item of allUrls){
+    let found=false;
+    for(const ck of cacheKeys){
+      const cache=await caches.open(ck);
+      const m=await cache.match(item.url);
+      if(m){found=true;break}
+    }
+    if(found)cachedCount++;
+    item.cached=found;
+  }
+  const missing=allUrls.filter(i=>!i.cached);
+  // Storage-Estimate für Quota-Diagnose
+  let storageInfo='';
+  let isQuotaIssue=false;
+  if(navigator.storage&&navigator.storage.estimate){
+    try{
+      const est=await navigator.storage.estimate();
+      const usedMB=(est.usage/1024/1024).toFixed(1);
+      const quotaMB=(est.quota/1024/1024).toFixed(0);
+      const pct=Math.round(est.usage/est.quota*100);
+      storageInfo='\n\n💾 Speicher: '+usedMB+' MB von '+quotaMB+' MB belegt ('+pct+'%)';
+      if(pct>=80)isQuotaIssue=true;
+    }catch(e){}
+  }
+  // Fehlende nach Kategorie gruppieren
+  const missingByCategory={};
+  missing.forEach(m=>{
+    const key=m.type==='Kategorie'?'Kategorien':(m.catName||'Andere');
+    if(!missingByCategory[key])missingByCategory[key]=0;
+    missingByCategory[key]++;
+  });
+  let msg='📊 Cache-Status:\n\n';
+  msg+='✓ Im Cache: '+cachedCount+' / '+allUrls.length+'\n';
+  msg+='✗ Fehlen: '+missing.length;
+  msg+=storageInfo;
+  if(missing.length>0){
+    msg+='\n\nFehlende pro Kategorie:\n';
+    Object.entries(missingByCategory).sort((a,b)=>b[1]-a[1]).forEach(([cat,count])=>{
+      msg+='• '+cat+': '+count+'\n';
+    });
+    if(isQuotaIssue){
+      msg+='\n⚠️ SPEICHER FAST VOLL!\nDas ist wahrscheinlich der Grund warum nicht alle Bilder offline sind. iOS Safari hat ein Limit von ~50MB.';
+    }
+  } else {
+    msg+='\n\n✅ Alles offline verfügbar!';
+  }
+  // Konsole-Log fürs Debuggen
+  console.log('Cache-Status:',{cached:cachedCount,total:allUrls.length,missingCount:missing.length,missingByCategory:missingByCategory,missingUrls:missing.slice(0,5).map(m=>m.url)});
+  alert(msg);
+}
+
 async function clearImageCache(){
   if(!confirm('Bilder-Cache wirklich leeren? Bilder werden danach erneut aus dem Netz geladen.'))return;
   if('caches' in window){
     const keys=await caches.keys();
     await Promise.all(keys.filter(k=>k.includes('images')).map(k=>caches.delete(k)));
   }
-  preloadDone=false;
+  preloadedUrls.clear();
   toast('Cache geleert','success');
 }
+
+// Auto-Trigger: prüft regelmäßig ob neue Bilder dazugekommen sind
 let preloadTimer=null;
-function schedulePreload(){
-  if(preloadDone)return;
+function scheduleAutoPreload(delayMs){
+  delayMs=delayMs||3000;
   if(preloadTimer)clearTimeout(preloadTimer);
-  preloadTimer=setTimeout(()=>preloadAllImages(false),2500);
+  preloadTimer=setTimeout(()=>preloadImages({showStatus:false}),delayMs);
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
@@ -624,12 +766,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   db.collection('categories').orderBy('order','asc').onSnapshot(snap=>{
     categories=snap.docs.map(d=>({id:d.id,...d.data()}));
     saveCache('bk_cats',categories);renderCategories();renderAdminCategories();updateCategorySelects();updateStats();
-    schedulePreload();
+    scheduleAutoPreload();
   },e=>console.log('Cat err:',e));
   db.collection('products').orderBy('createdAt','desc').onSnapshot(snap=>{
     products=snap.docs.map(d=>({id:d.id,...d.data()}));
     saveCache('bk_prods',products);if(currentCategory)renderProducts(currentCategory);renderAdminProducts();updateStats();
-    schedulePreload();
+    scheduleAutoPreload();
   },e=>console.log('Prod err:',e));
   auth.onAuthStateChanged(user=>{
     currentUser=user;const li=!!user;
@@ -642,8 +784,10 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(ae&&user)ae.textContent=user.email;
   });
   setTimeout(()=>document.getElementById('loading-screen').classList.add('hidden'),categories.length>0?200:600);
-  // Wenn schon Daten aus Cache: gleich Pre-Loading anstoßen (nach 1.5s)
-  if(categories.length>0||products.length>0){setTimeout(()=>schedulePreload(),1500)}
+  // Wenn Daten schon aus Cache: gleich Pre-Loading-Check anstoßen
+  if(categories.length>0||products.length>0){scheduleAutoPreload(1500)}
+  // Wieder online → Cache-Check nochmal triggern (falls offline aufgemacht und dann wieder verbunden)
+  window.addEventListener('online',()=>scheduleAutoPreload(2000));
 });
 
 function navTo(pageId){

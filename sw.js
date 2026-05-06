@@ -9,7 +9,7 @@
  *  - Firestore/Auth API-Calls: NICHT cachen (Firebase macht eigene Persistence)
  */
 
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.2.0';
 const CACHE_STATIC = 'bk-static-' + VERSION;
 const CACHE_FIREBASE = 'bk-firebase-' + VERSION;
 const CACHE_FONTS = 'bk-fonts-' + VERSION;
@@ -82,8 +82,8 @@ self.addEventListener('fetch', event => {
 /**
  * Spezial-Strategie für Firebase Storage Bilder:
  * - Erst aus Cache versuchen
- * - Wenn nicht da: mit no-cors holen
- * - opaque responses (status 0) werden trotzdem gecached
+ * - Wenn nicht da: passiv die original Request durchlassen und Resultat cachen
+ * - Funktioniert sowohl für <img>-Loads als auch für fetch()-Calls
  */
 async function cacheFirstImage(req, cacheName) {
   const cache = await caches.open(cacheName);
@@ -91,19 +91,21 @@ async function cacheFirstImage(req, cacheName) {
   if (cached) return cached;
 
   try {
-    // no-cors: für iOS Safari mit Firebase Storage Bildern
-    const fetchReq = new Request(req.url, {
-      mode: 'no-cors',
-      credentials: 'omit',
-      cache: 'default'
-    });
-    const res = await fetch(fetchReq);
+    // Original-Request durchlassen statt selbst zu fetchen.
+    // Das ist wichtig damit <img>-Loads (no-cors) korrekt durchgehen.
+    const res = await fetch(req);
 
+    // Cachen: status 200 ODER opaque (=no-cors success)
+    // Wichtig: opaque responses haben status 0, aber sind nutzbar als <img>
     if (res && (res.status === 200 || res.type === 'opaque' || res.type === 'opaqueredirect')) {
-      cache.put(req, res.clone()).catch(e => console.log('Cache put failed:', e));
+      // Klonen BEVOR wir warten – die response body ist sonst verbraucht
+      const clone = res.clone();
+      // Async cachen, blockiert die Response-Auslieferung nicht
+      cache.put(req, clone).catch(e => console.log('SW Cache put failed:', req.url, e));
     }
     return res;
   } catch (e) {
+    // Offline und nicht im Cache
     return new Response('', { status: 503, statusText: 'Offline – Bild nicht im Cache' });
   }
 }
