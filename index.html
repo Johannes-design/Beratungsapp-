@@ -637,23 +637,34 @@ async function preloadImages(opts){
     const batch=urls.slice(i,i+batchSize);
     await Promise.all(batch.map(async url=>{
       try{
-        // 1. Versuch: CORS – Response zählt im Cache mit echter Größe (ca. 200KB)
+        // CORS-fetch + Blob-Trick: Response wird in Blob umgewandelt und als
+        // "saubere" Response mit echter Größe neu gecached. Umgeht iOS Safari
+        // Padding (~7MB pro opaque response).
         const res=await fetch(url,{mode:'cors',credentials:'omit',cache:'reload'});
-        if(res.ok){
-          await imgCache.put(url,res);
-          preloadedUrls.add(url);
-          corsOk++;
-        } else {throw new Error('HTTP '+res.status)}
+        if(!res.ok)throw new Error('HTTP '+res.status);
+        const blob=await res.blob();
+        const cleanRes=new Response(blob,{
+          status:200,
+          headers:{
+            'Content-Type':blob.type||'image/jpeg',
+            'Content-Length':String(blob.size),
+            'Cache-Control':'public, max-age=31536000'
+          }
+        });
+        await imgCache.put(url,cleanRes);
+        preloadedUrls.add(url);
+        corsOk++;
       }catch(corsErr){
-        // 2. Versuch: no-cors – funktioniert immer, aber opaque (=7MB padded auf iOS)
+        // CORS-Fallback: no-cors funktioniert, aber opaque (~7MB padded auf iOS)
         try{
           const res=await fetch(url,{mode:'no-cors',credentials:'omit',cache:'reload'});
           await imgCache.put(url,res);
           preloadedUrls.add(url);
           opaqueOk++;
+          console.log('CORS fehlgeschlagen, no-cors-Fallback genutzt für:',url,corsErr.message);
         }catch(e2){
           failed++;
-          console.log('Preload failed:',url,e2);
+          console.log('Preload komplett fehlgeschlagen:',url,e2);
         }
       }
       done++;
@@ -667,9 +678,11 @@ async function preloadImages(opts){
   } else if(failed>0){
     text.textContent='Fertig: '+success+' / '+total+' Bilder ('+failed+' fehlgeschlagen)';
   } else if(opaqueOk>0&&corsOk===0){
-    text.textContent=total+' Bilder gespeichert (Modus: ohne CORS)';
+    text.textContent='⚠️ '+total+' Bilder gespeichert (CORS deaktiviert – frisst Speicher)';
+  } else if(opaqueOk>0&&corsOk>0){
+    text.textContent=total+' Bilder gespeichert ('+corsOk+' CORS, '+opaqueOk+' opaque)';
   } else {
-    text.textContent=total===1?'1 Bild ist offline verfügbar':total+' Bilder sind offline verfügbar';
+    text.textContent='✓ '+total+(total===1?' Bild':' Bilder')+' offline verfügbar';
   }
   status.classList.add('done');
   if(showVisualFeedback)setTimeout(()=>status.classList.remove('show'),3500);
