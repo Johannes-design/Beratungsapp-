@@ -792,7 +792,19 @@ async function loadImageAsBlob(url){
 }
 
 // Manueller Button (Verwaltung)
-function manualPreload(){preloadImages({showStatus:true})}
+async function manualPreload(){
+  if(preloadInProgress)return toast('Läuft schon…');
+  if(!navigator.onLine)return toast('Keine Verbindung – bitte ins WLAN','error');
+  // Erst prüfen wie viele Bilder fehlen
+  const missing=await getMissingImageUrls();
+  const total=categories.filter(c=>c.imageUrl).length+products.filter(p=>p.imageUrl).length;
+  if(missing.length===0){
+    toast('✓ Alle '+total+' Bilder sind bereits offline','success');
+    return;
+  }
+  toast(missing.length+' Bilder werden geladen…','success');
+  preloadImages({showStatus:true});
+}
 
 // Cache-Status anzeigen (Diagnose)
 async function checkCacheStatus(){

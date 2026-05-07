@@ -9,7 +9,7 @@
  *  - Firestore/Auth API-Calls: NICHT cachen (Firebase macht eigene Persistence)
  */
 
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.0';
 const CACHE_STATIC = 'bk-static-' + VERSION;
 const CACHE_FIREBASE = 'bk-firebase-' + VERSION;
 const CACHE_FONTS = 'bk-fonts-' + VERSION;
