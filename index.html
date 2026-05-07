@@ -552,34 +552,130 @@ function updateOnlineState(){
 window.addEventListener('online',updateOnlineState);
 window.addEventListener('offline',updateOnlineState);
 
+/* === INDEXEDDB FÜR OFFLINE-BILDER (bulletproof) === */
+const IDB_NAME='bk_offline_images',IDB_STORE='blobs',IDB_VERSION=1;
+let _idbPromise=null;
+function idbOpen(){
+  if(_idbPromise)return _idbPromise;
+  _idbPromise=new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window))return reject(new Error('IndexedDB nicht verfügbar'));
+    const req=indexedDB.open(IDB_NAME,IDB_VERSION);
+    req.onerror=()=>reject(req.error);
+    req.onsuccess=()=>resolve(req.result);
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
+    };
+  });
+  return _idbPromise;
+}
+async function idbSaveBlob(url,blob){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(blob,url);
+    tx.oncomplete=()=>res();
+    tx.onerror=()=>rej(tx.error);
+  });
+}
+async function idbGetBlob(url){
+  try{
+    const db=await idbOpen();
+    return await new Promise((res,rej)=>{
+      const tx=db.transaction(IDB_STORE,'readonly');
+      const req=tx.objectStore(IDB_STORE).get(url);
+      req.onsuccess=()=>res(req.result||null);
+      req.onerror=()=>rej(req.error);
+    });
+  }catch(e){return null}
+}
+async function idbHasUrl(url){
+  return !!(await idbGetBlob(url));
+}
+async function idbAllKeys(){
+  try{
+    const db=await idbOpen();
+    return await new Promise((res,rej)=>{
+      const tx=db.transaction(IDB_STORE,'readonly');
+      const req=tx.objectStore(IDB_STORE).getAllKeys();
+      req.onsuccess=()=>res(req.result||[]);
+      req.onerror=()=>rej(req.error);
+    });
+  }catch(e){return []}
+}
+async function idbClearAll(){
+  try{
+    const db=await idbOpen();
+    return await new Promise((res,rej)=>{
+      const tx=db.transaction(IDB_STORE,'readwrite');
+      tx.objectStore(IDB_STORE).clear();
+      tx.oncomplete=()=>res();
+      tx.onerror=()=>rej(tx.error);
+    });
+  }catch(e){}
+}
+
+/* Cache von URL -> blob URL (Object URL) in dieser Session */
+const _blobUrlCache=new Map();
+async function getOfflineSrc(url){
+  if(!url)return url;
+  if(_blobUrlCache.has(url))return _blobUrlCache.get(url);
+  const blob=await idbGetBlob(url);
+  if(!blob)return url;
+  const blobUrl=URL.createObjectURL(blob);
+  _blobUrlCache.set(url,blobUrl);
+  return blobUrl;
+}
+
+/* Hydration: nach Render alle <img> mit Firebase-Storage URLs prüfen
+   und ggf. durch Blob URLs aus IndexedDB ersetzen */
+async function hydrateOfflineImages(root){
+  const scope=root||document;
+  const imgs=scope.querySelectorAll('img');
+  for(const img of imgs){
+    const src=img.getAttribute('src');
+    if(!src)continue;
+    if(src.startsWith('blob:')||src.startsWith('data:'))continue;
+    if(!src.includes('firebasestorage')&&!src.includes('googleapis.com'))continue;
+    const blob=await idbGetBlob(src);
+    if(blob){
+      let blobUrl=_blobUrlCache.get(src);
+      if(!blobUrl){blobUrl=URL.createObjectURL(blob);_blobUrlCache.set(src,blobUrl)}
+      // dataset original-src merken falls wir später wieder wechseln
+      if(!img.dataset.origSrc)img.dataset.origSrc=src;
+      img.src=blobUrl;
+    }
+  }
+  // Auch background-images im Stil prüfen (z.B. Hero-Bilder falls vorhanden)
+  const bgEls=scope.querySelectorAll('[style*="firebasestorage"],[style*="googleapis"]');
+  for(const el of bgEls){
+    const m=(el.getAttribute('style')||'').match(/url\(["']?([^"')]+)["']?\)/);
+    if(!m)continue;
+    const orig=m[1];
+    const blob=await idbGetBlob(orig);
+    if(blob){
+      let blobUrl=_blobUrlCache.get(orig);
+      if(!blobUrl){blobUrl=URL.createObjectURL(blob);_blobUrlCache.set(orig,blobUrl)}
+      el.style.backgroundImage='url("'+blobUrl+'")';
+    }
+  }
+}
+// Nach jedem DOM-Update kann man hydrateOfflineImages() aufrufen
+window.hydrateOfflineImages=hydrateOfflineImages;
+
 /* === IMAGE PRE-LOADING (für Offline-Zugriff) === */
 let preloadInProgress=false;
 let preloadedUrls=new Set(); // alle URLs die diese Session schon erfolgreich gefetched wurden
 
-// Prüft welche Bild-URLs noch NICHT im Cache liegen
+// Prüft welche Bild-URLs noch NICHT im IndexedDB liegen
 async function getMissingImageUrls(){
   const allUrls=[];
   categories.forEach(c=>{if(c.imageUrl)allUrls.push(c.imageUrl)});
   products.forEach(p=>{if(p.imageUrl)allUrls.push(p.imageUrl)});
-  if(!('caches' in window))return allUrls;
-  const missing=[];
-  try{
-    // Alle Image-Caches öffnen
-    const cacheKeys=(await caches.keys()).filter(k=>k.includes('images'));
-    if(!cacheKeys.length)return allUrls;
-    for(const url of allUrls){
-      // Schon in dieser Session gefetched? → skip
-      if(preloadedUrls.has(url))continue;
-      let found=false;
-      for(const ck of cacheKeys){
-        const cache=await caches.open(ck);
-        const m=await cache.match(url);
-        if(m){found=true;break}
-      }
-      if(!found)missing.push(url);
-    }
-  }catch(e){console.log('Cache-Check Fehler',e);return allUrls}
-  return missing;
+  if(!allUrls.length)return [];
+  // Alle gespeicherten Keys aus IDB einmal holen (schneller als pro URL prüfen)
+  const stored=new Set(await idbAllKeys());
+  return allUrls.filter(u=>!stored.has(u));
 }
 
 // Hauptfunktion: lädt fehlende Bilder, optional mit UI-Feedback
@@ -599,10 +695,6 @@ async function preloadImages(opts){
   const forceAll=opts.forceAll===true;
   if(preloadInProgress)return;
   if(!navigator.onLine){if(showStatus)toast('Keine Verbindung','error');return}
-  // Cache-Referenz holen (gleicher Cache wie der SW nutzt)
-  let imgCache;
-  try{imgCache=await getImageCache()}
-  catch(e){if(showStatus)toast('Cache-Storage nicht verfügbar','error');return}
   let urls;
   if(forceAll){
     urls=[];
@@ -628,7 +720,7 @@ async function preloadImages(opts){
   status.classList.remove('done');
   const showVisualFeedback=showStatus||urls.length>5;
   if(showVisualFeedback)status.classList.add('show');
-  let done=0,corsOk=0,opaqueOk=0,failed=0;
+  let done=0,corsOk=0,fallbackOk=0,failed=0;
   const total=urls.length;
   text.textContent='Bilder werden gespeichert: 0 / '+total;
   // Parallele Downloads in Batches von 4
@@ -636,35 +728,24 @@ async function preloadImages(opts){
   for(let i=0;i<urls.length;i+=batchSize){
     const batch=urls.slice(i,i+batchSize);
     await Promise.all(batch.map(async url=>{
+      // 1. Versuch: CORS-fetch (saubere Response, echte Größe)
       try{
-        // CORS-fetch + Blob-Trick: Response wird in Blob umgewandelt und als
-        // "saubere" Response mit echter Größe neu gecached. Umgeht iOS Safari
-        // Padding (~7MB pro opaque response).
         const res=await fetch(url,{mode:'cors',credentials:'omit',cache:'reload'});
         if(!res.ok)throw new Error('HTTP '+res.status);
         const blob=await res.blob();
-        const cleanRes=new Response(blob,{
-          status:200,
-          headers:{
-            'Content-Type':blob.type||'image/jpeg',
-            'Content-Length':String(blob.size),
-            'Cache-Control':'public, max-age=31536000'
-          }
-        });
-        await imgCache.put(url,cleanRes);
+        await idbSaveBlob(url,blob);
         preloadedUrls.add(url);
         corsOk++;
       }catch(corsErr){
-        // CORS-Fallback: no-cors funktioniert, aber opaque (~7MB padded auf iOS)
+        // 2. Versuch: <img>-Element mit crossOrigin (umgeht manche CORS-Probleme)
         try{
-          const res=await fetch(url,{mode:'no-cors',credentials:'omit',cache:'reload'});
-          await imgCache.put(url,res);
+          const blob=await loadImageAsBlob(url);
+          await idbSaveBlob(url,blob);
           preloadedUrls.add(url);
-          opaqueOk++;
-          console.log('CORS fehlgeschlagen, no-cors-Fallback genutzt für:',url,corsErr.message);
+          fallbackOk++;
         }catch(e2){
           failed++;
-          console.log('Preload komplett fehlgeschlagen:',url,e2);
+          console.log('Preload fehlgeschlagen für:',url,corsErr.message,e2.message);
         }
       }
       done++;
@@ -672,22 +753,42 @@ async function preloadImages(opts){
     }));
   }
   // Status-Text je nach Ergebnis
-  const success=corsOk+opaqueOk;
+  const success=corsOk+fallbackOk;
   if(failed>0&&success===0){
-    text.textContent='⚠️ Bilder konnten nicht gespeichert werden';
+    text.textContent='⚠️ Keine Bilder konnten gespeichert werden';
   } else if(failed>0){
-    text.textContent='Fertig: '+success+' / '+total+' Bilder ('+failed+' fehlgeschlagen)';
-  } else if(opaqueOk>0&&corsOk===0){
-    text.textContent='⚠️ '+total+' Bilder gespeichert (CORS deaktiviert – frisst Speicher)';
-  } else if(opaqueOk>0&&corsOk>0){
-    text.textContent=total+' Bilder gespeichert ('+corsOk+' CORS, '+opaqueOk+' opaque)';
+    text.textContent='Fertig: '+success+' / '+total+' ('+failed+' fehlgeschlagen)';
   } else {
     text.textContent='✓ '+total+(total===1?' Bild':' Bilder')+' offline verfügbar';
   }
   status.classList.add('done');
   if(showVisualFeedback)setTimeout(()=>status.classList.remove('show'),3500);
   preloadInProgress=false;
-  console.log('Preload-Statistik:',{total,corsOk,opaqueOk,failed});
+  console.log('Preload-Statistik:',{total,corsOk,fallbackOk,failed});
+  // Nach Pre-Load: alle bereits gerenderten <img> hydraten
+  hydrateOfflineImages();
+}
+
+// Fallback: Bild via <img>-Tag laden, dann via canvas zu Blob konvertieren
+async function loadImageAsBlob(url){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>{
+      try{
+        const canvas=document.createElement('canvas');
+        canvas.width=img.naturalWidth;
+        canvas.height=img.naturalHeight;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0);
+        canvas.toBlob(blob=>{
+          if(blob)resolve(blob);else reject(new Error('toBlob failed'));
+        },'image/jpeg',0.85);
+      }catch(e){reject(e)}
+    };
+    img.onerror=()=>reject(new Error('img load failed'));
+    img.src=url;
+  });
 }
 
 // Manueller Button (Verwaltung)
@@ -695,37 +796,29 @@ function manualPreload(){preloadImages({showStatus:true})}
 
 // Cache-Status anzeigen (Diagnose)
 async function checkCacheStatus(){
-  if(!('caches' in window))return alert('Browser unterstützt kein Cache-Storage');
   const allUrls=[];
   categories.forEach(c=>{if(c.imageUrl)allUrls.push({type:'Kategorie',name:c.name,url:c.imageUrl})});
   products.forEach(p=>{if(p.imageUrl){
     const cat=categories.find(c=>c.id===p.categoryId);
     allUrls.push({type:'Produkt',name:p.name,url:p.imageUrl,catName:cat?cat.name:'?'});
   }});
+  // IndexedDB als Hauptquelle
+  const stored=new Set(await idbAllKeys());
   let cachedCount=0;
-  const cacheKeys=(await caches.keys()).filter(k=>k.includes('images'));
-  for(const item of allUrls){
-    let found=false;
-    for(const ck of cacheKeys){
-      const cache=await caches.open(ck);
-      const m=await cache.match(item.url);
-      if(m){found=true;break}
-    }
-    if(found)cachedCount++;
-    item.cached=found;
-  }
+  allUrls.forEach(item=>{
+    item.cached=stored.has(item.url);
+    if(item.cached)cachedCount++;
+  });
   const missing=allUrls.filter(i=>!i.cached);
-  // Storage-Estimate für Quota-Diagnose
+  // Storage-Estimate für Diagnose
   let storageInfo='';
-  let isQuotaIssue=false;
   if(navigator.storage&&navigator.storage.estimate){
     try{
       const est=await navigator.storage.estimate();
       const usedMB=(est.usage/1024/1024).toFixed(1);
       const quotaMB=(est.quota/1024/1024).toFixed(0);
       const pct=Math.round(est.usage/est.quota*100);
-      storageInfo='\n\n💾 Speicher: '+usedMB+' MB von '+quotaMB+' MB belegt ('+pct+'%)';
-      if(pct>=80)isQuotaIssue=true;
+      storageInfo='\n\n💾 Speicher: '+usedMB+' MB von '+quotaMB+' MB ('+pct+'%)';
     }catch(e){}
   }
   // Fehlende nach Kategorie gruppieren
@@ -735,8 +828,8 @@ async function checkCacheStatus(){
     if(!missingByCategory[key])missingByCategory[key]=0;
     missingByCategory[key]++;
   });
-  let msg='📊 Cache-Status:\n\n';
-  msg+='✓ Im Cache: '+cachedCount+' / '+allUrls.length+'\n';
+  let msg='📊 Offline-Status:\n\n';
+  msg+='✓ Im Speicher: '+cachedCount+' / '+allUrls.length+'\n';
   msg+='✗ Fehlen: '+missing.length;
   msg+=storageInfo;
   if(missing.length>0){
@@ -744,23 +837,25 @@ async function checkCacheStatus(){
     Object.entries(missingByCategory).sort((a,b)=>b[1]-a[1]).forEach(([cat,count])=>{
       msg+='• '+cat+': '+count+'\n';
     });
-    if(isQuotaIssue){
-      msg+='\n⚠️ SPEICHER FAST VOLL!\nDas ist wahrscheinlich der Grund warum nicht alle Bilder offline sind. iOS Safari hat ein Limit von ~50MB.';
-    }
   } else {
     msg+='\n\n✅ Alles offline verfügbar!';
   }
-  // Konsole-Log fürs Debuggen
-  console.log('Cache-Status:',{cached:cachedCount,total:allUrls.length,missingCount:missing.length,missingByCategory:missingByCategory,missingUrls:missing.slice(0,5).map(m=>m.url)});
+  console.log('Cache-Status:',{cached:cachedCount,total:allUrls.length,missingCount:missing.length,missingByCategory});
   alert(msg);
 }
 
 async function clearImageCache(){
   if(!confirm('Bilder-Cache wirklich leeren? Bilder werden danach erneut aus dem Netz geladen.'))return;
+  // Service-Worker-Cache leeren
   if('caches' in window){
     const keys=await caches.keys();
     await Promise.all(keys.filter(k=>k.includes('images')).map(k=>caches.delete(k)));
   }
+  // IndexedDB leeren
+  await idbClearAll();
+  // Blob URLs freigeben
+  _blobUrlCache.forEach(blobUrl=>URL.revokeObjectURL(blobUrl));
+  _blobUrlCache.clear();
   preloadedUrls.clear();
   toast('Cache geleert','success');
 }
@@ -820,6 +915,7 @@ function renderCategories(){
     const img=cat.imageUrl?'<img src="'+cat.imageUrl+'" alt="'+esc(cat.name)+'" loading="lazy">':'<span>'+(cat.icon||'📁')+'</span>';
     return '<div class="cat-card" onclick="openCategory(\''+cat.id+'\')"><div class="cat-card-img">'+img+'</div><span class="cat-card-count">'+count+' '+(count===1?'Produkt':'Produkte')+'</span><div class="cat-card-body"><h3>'+esc(cat.name)+'</h3><p>'+esc(cat.description||'')+'</p></div></div>';
   }).join('');
+  hydrateOfflineImages(grid);
 }
 
 function openCategory(catId){
@@ -866,13 +962,16 @@ function renderProducts(catId){
     const img=prod.imageUrl?'<img src="'+prod.imageUrl+'" alt="'+esc(prod.name)+'" loading="lazy" decoding="async">':'';
     return '<div class="product-card" onclick="openProductModalById(\''+prod.id+'\')"><div class="product-card-img">'+img+'</div><div class="product-card-body"><h4>'+esc(prod.name)+'</h4>'+(prod.price?'<div class="price">'+esc(prod.price)+'</div>':'')+'</div></div>';
   }).join('');
+  hydrateOfflineImages(grid);
 }
 
-function openProductModalById(prodId){
+async function openProductModalById(prodId){
   const prod=products.find(p=>p.id===prodId);
   if(!prod)return;
-  document.getElementById('modalImg').innerHTML=prod.imageUrl?'<img src="'+prod.imageUrl+'" alt="'+esc(prod.name)+'" style="cursor:zoom-in" decoding="async">':'';
-  var mimg=document.querySelector('#modalImg img');if(mimg){mimg.onclick=function(){openZoom(prod.imageUrl)}};
+  // Bild-URL ggf. durch Blob-URL aus IDB ersetzen für Offline-Funktion
+  const displaySrc=prod.imageUrl?await getOfflineSrc(prod.imageUrl):'';
+  document.getElementById('modalImg').innerHTML=prod.imageUrl?'<img src="'+displaySrc+'" alt="'+esc(prod.name)+'" style="cursor:zoom-in" decoding="async">':'';
+  var mimg=document.querySelector('#modalImg img');if(mimg){mimg.onclick=function(){openZoom(displaySrc||prod.imageUrl)}};
   document.getElementById('modalTitle').textContent=prod.name;
   document.getElementById('modalPrice').textContent=prod.price||'';
   document.getElementById('modalDesc').textContent=prod.description||'';
