@@ -305,6 +305,7 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
         <button class="btn btn-outline btn-sm" onclick="manualPreload()" title="Bilder jetzt für Offline laden">📥 Bilder offline speichern</button>
         <button class="btn btn-outline btn-sm" onclick="checkCacheStatus()" title="Cache-Status prüfen">🔍 Status prüfen</button>
+        <button class="btn btn-outline btn-sm" onclick="runDiagnose()" title="Diagnose – warum klappt Offline nicht">🧪 Diagnose</button>
         <button class="btn btn-outline btn-sm" onclick="clearImageCache()" title="Bilder-Cache leeren">🗑 Cache leeren</button>
       </div>
       <div class="admin-tabs">
@@ -806,7 +807,86 @@ async function manualPreload(){
   preloadImages({showStatus:true});
 }
 
-// Cache-Status anzeigen (Diagnose)
+// Tiefe Diagnose – findet heraus WARUM Offline nicht klappt
+async function runDiagnose(){
+  if(!navigator.onLine)return alert('⚠️ Bitte zuerst online gehen für Diagnose');
+  // Drei Test-URLs auswählen: 1 Kategorie + 1 Produkt (versch. Kategorien wenn möglich)
+  const tests=[];
+  const cat=categories.find(c=>c.imageUrl);
+  if(cat)tests.push({label:'Kategorie ('+cat.name+')',url:cat.imageUrl});
+  // Pro Kategorie ein Produkt testen
+  const seenCats=new Set();
+  for(const p of products){
+    if(!p.imageUrl||seenCats.has(p.categoryId))continue;
+    seenCats.add(p.categoryId);
+    const c=categories.find(cc=>cc.id===p.categoryId);
+    tests.push({label:'Produkt: '+(c?c.name:'?')+' – '+p.name,url:p.imageUrl});
+    if(tests.length>=5)break;
+  }
+  if(!tests.length)return alert('Keine Bilder zum Testen vorhanden');
+  let report='🧪 DIAGNOSE-REPORT\n\n';
+  // Test 1: IndexedDB Schreib-Test
+  report+='1️⃣ IndexedDB Schreib-Test:\n';
+  try{
+    const testBlob=new Blob(['test'],{type:'text/plain'});
+    await idbSaveBlob('__diagnose_test__',testBlob);
+    const back=await idbGetBlob('__diagnose_test__');
+    if(back){
+      report+='✅ OK\n\n';
+    } else {
+      report+='❌ Schreiben OK aber Lesen leer\n\n';
+    }
+  }catch(e){
+    report+='❌ FEHLER: '+e.message+'\n';
+    report+='(IndexedDB blockiert? Privates Surfen?)\n\n';
+  }
+  // Test 2: für jede URL CORS-Fetch testen
+  report+='2️⃣ Bild-Tests:\n';
+  for(const t of tests){
+    let line=t.label.substring(0,40)+'\n';
+    let corsOk=false,blobSize=0,errMsg='';
+    try{
+      const res=await fetch(t.url,{mode:'cors',credentials:'omit',cache:'reload'});
+      if(res.ok){
+        corsOk=true;
+        const blob=await res.blob();
+        blobSize=blob.size;
+      } else {
+        errMsg='HTTP '+res.status;
+      }
+    }catch(e){
+      errMsg=e.message||'unknown';
+    }
+    if(corsOk){
+      const sizeKB=Math.round(blobSize/1024);
+      line+='  ✅ CORS OK ('+sizeKB+' KB)\n';
+    } else {
+      line+='  ❌ CORS FEHLT: '+errMsg+'\n';
+    }
+    report+=line;
+  }
+  // Test 3: Speicher-Quota
+  report+='\n3️⃣ Speicher:\n';
+  if(navigator.storage&&navigator.storage.estimate){
+    try{
+      const est=await navigator.storage.estimate();
+      const usedMB=(est.usage/1024/1024).toFixed(1);
+      const quotaMB=(est.quota/1024/1024).toFixed(0);
+      report+=usedMB+' MB / '+quotaMB+' MB belegt\n';
+    }catch(e){report+='Status nicht abrufbar\n'}
+  } else {
+    report+='Browser unterstützt das nicht\n';
+  }
+  // Test 4: PWA-Modus check
+  report+='\n4️⃣ Browser-Info:\n';
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+  report+=(isStandalone?'PWA-Modus':'Safari-Browser')+'\n';
+  report+='Online: '+(navigator.onLine?'Ja':'Nein')+'\n';
+  // Test cleanup
+  try{const db=await idbOpen();const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('__diagnose_test__');}catch(e){}
+  console.log('Diagnose:',report);
+  alert(report);
+}
 async function checkCacheStatus(){
   const allUrls=[];
   categories.forEach(c=>{if(c.imageUrl)allUrls.push({type:'Kategorie',name:c.name,url:c.imageUrl})});
