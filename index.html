@@ -1084,10 +1084,15 @@ async function addCategory(){
   const icon=document.getElementById('catIcon').value.trim(),hasSub=document.getElementById('catHasSubcats').checked;
   const fi=document.getElementById('catImage');
   if(!name)return toast('Bitte Kategorienamen eingeben','error');
-  let imageUrl='';if(fi.files[0])imageUrl=await uploadImage(fi.files[0],'categories');
-  await db.collection('categories').add({name,description:desc,icon:icon||'📁',imageUrl,hasSubcategories:hasSub,subcategories:[],order:categories.length,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-  document.getElementById('catName').value='';document.getElementById('catDesc').value='';document.getElementById('catIcon').value='';document.getElementById('catHasSubcats').checked=false;fi.value='';document.getElementById('catPreview').style.display='none';
-  toast('Kategorie hinzugefügt!','success');
+  try{
+    let imageUrl='';
+    if(fi.files[0]){toast('Bild wird hochgeladen…');imageUrl=await uploadImage(fi.files[0],'categories')}
+    await db.collection('categories').add({name,description:desc,icon:icon||'📁',imageUrl,hasSubcategories:hasSub,subcategories:[],order:categories.length,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('catName').value='';document.getElementById('catDesc').value='';document.getElementById('catIcon').value='';document.getElementById('catHasSubcats').checked=false;fi.value='';document.getElementById('catPreview').style.display='none';
+    toast('Kategorie hinzugefügt!','success');
+  }catch(e){
+    fehlerMelden('Kategorie konnte nicht angelegt werden',e);
+  }
 }
 
 async function deleteCategory(id){if(!confirm('Kategorie wirklich löschen?'))return;await db.collection('categories').doc(id).delete();toast('Kategorie gelöscht')}
@@ -1129,9 +1134,16 @@ async function saveEditCat(){
     hasSubcategories:document.getElementById('editCatHasSubcats').checked
   };
   const fi=document.getElementById('editCatImage');
-  if(fi.files[0]){updates.imageUrl=await uploadImage(fi.files[0],'categories')}
-  await db.collection('categories').doc(editingCatId).update(updates);
-  closeEditCat();toast('Kategorie aktualisiert!','success');
+  try{
+    if(fi.files[0]){
+      toast('Bild wird hochgeladen…');
+      updates.imageUrl=await uploadImage(fi.files[0],'categories');
+    }
+    await db.collection('categories').doc(editingCatId).update(updates);
+    closeEditCat();toast('Kategorie aktualisiert!','success');
+  }catch(e){
+    fehlerMelden('Kategorie konnte nicht gespeichert werden',e);
+  }
 }
 
 async function addSubcategory(catId){
@@ -1174,12 +1186,17 @@ async function addProduct(){
   const price=document.getElementById('prodPrice').value.trim(),desc=document.getElementById('prodDesc').value.trim();
   const subcat=document.getElementById('prodSubcat').value||null,fi=document.getElementById('prodImage');
   if(!catId)return toast('Bitte Kategorie wählen','error');if(!name)return toast('Bitte Produktnamen eingeben','error');
-  let imageUrl='';if(fi.files[0])imageUrl=await uploadImage(fi.files[0],'products');
-  const data={categoryId:catId,name,price,description:desc,imageUrl,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
-  if(subcat)data.subcategory=subcat;
-  await db.collection('products').add(data);
-  document.getElementById('prodName').value='';document.getElementById('prodPrice').value='';document.getElementById('prodDesc').value='';fi.value='';document.getElementById('prodPreview').style.display='none';
-  toast('Produkt hinzugefügt!','success');
+  try{
+    let imageUrl='';
+    if(fi.files[0]){toast('Bild wird hochgeladen…');imageUrl=await uploadImage(fi.files[0],'products')}
+    const data={categoryId:catId,name,price,description:desc,imageUrl,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(subcat)data.subcategory=subcat;
+    await db.collection('products').add(data);
+    document.getElementById('prodName').value='';document.getElementById('prodPrice').value='';document.getElementById('prodDesc').value='';fi.value='';document.getElementById('prodPreview').style.display='none';
+    toast('Produkt hinzugefügt!','success');
+  }catch(e){
+    fehlerMelden('Produkt konnte nicht angelegt werden',e);
+  }
 }
 async function deleteProduct(id){if(!confirm('Produkt wirklich löschen?'))return;await db.collection('products').doc(id).delete();toast('Produkt gelöscht')}
 
@@ -1228,9 +1245,16 @@ async function saveEditProd(){
   var subcat=document.getElementById('editProdSubcat').value;
   if(subcat){updates.subcategory=subcat}else{updates.subcategory=firebase.firestore.FieldValue.delete()}
   var fi=document.getElementById('editProdImage');
-  if(fi.files[0]){updates.imageUrl=await uploadImage(fi.files[0],'products')}
-  await db.collection('products').doc(editingProdId).update(updates);
-  closeEditProd();toast('Produkt aktualisiert!','success');
+  try{
+    if(fi.files[0]){
+      toast('Bild wird hochgeladen…');
+      updates.imageUrl=await uploadImage(fi.files[0],'products');
+    }
+    await db.collection('products').doc(editingProdId).update(updates);
+    closeEditProd();toast('Produkt aktualisiert!','success');
+  }catch(e){
+    fehlerMelden('Produkt konnte nicht gespeichert werden',e);
+  }
 }
 function renderAdminProducts(){
   const list=document.getElementById('adminProdList');if(!list)return;
@@ -1327,7 +1351,7 @@ async function uploadFromPicker(input){
     await db.collection('products').doc(_pickerProdId).update({imageUrl:url});
     _storageImgCache=null;
     toast('Bild hochgeladen & zugeordnet!','success');closeImagePicker();
-  }catch(e){toast('Upload fehlgeschlagen','error');console.log(e)}
+  }catch(e){fehlerMelden('Bild konnte nicht zugeordnet werden',e)}
   input.value='';
 }
 async function removeImageFromProd(){
@@ -1429,6 +1453,23 @@ function blobAlsBase64(blob){
 function previewFile(input,id){const p=document.getElementById(id);if(input.files[0]){const r=new FileReader();r.onload=e=>{p.src=e.target.result;p.style.display='block'};r.readAsDataURL(input.files[0])}else p.style.display='none'}
 function toast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type;setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>t.classList.remove('show'),3000)}
 function esc(str){const d=document.createElement('div');d.textContent=str||'';return d.innerHTML}
+
+/* Fehler sichtbar machen.
+ * Vorher liefen addProduct/saveEditProd/addCategory/saveEditCat ohne try/catch:
+ * Schlug das Speichern fehl, passierte einfach gar nichts – kein Hinweis, keine
+ * Meldung. Genau so ging ein hochgeladenes Bild verloren, ohne dass es auffiel. */
+function fehlerMelden(was,e){
+  console.error(was,e);
+  const code=(e&&e.code)||'';
+  let grund=(e&&e.message)||'Unbekannter Fehler';
+  if(code==='permission-denied'){
+    grund='Keine Schreibrechte in der Datenbank. Bitte abmelden und neu anmelden.';
+  }else if(code==='unavailable'||/Failed to fetch|NetworkError/i.test(grund)){
+    grund='Keine Verbindung zum Server. Die Änderung wurde nicht gespeichert.';
+  }
+  toast(was+': '+grund,'error');
+  alert('⚠️ '+was+'\n\n'+grund+(code?'\n\n(Code: '+code+')':''));
+}
 
 function onSearch(){
   var q=document.getElementById('searchInput').value.trim().toLowerCase();
