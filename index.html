@@ -759,7 +759,10 @@ window.addEventListener('DOMContentLoaded',()=>{
   },e=>console.log('Cat err:',e));
   db.collection('products').orderBy('createdAt','desc').onSnapshot(snap=>{
     products=snap.docs.map(d=>({id:d.id,...d.data()}));
-    saveCache('bk_prods',products);if(currentCategory)renderProducts(currentCategory);renderAdminProducts();renderZuordnung();updateStats();
+    // renderCategories() muss hier mit: die Kachel zeigt "N Produkte", und beim
+    // allerersten Aufruf (leerer localStorage) kommen die Kategorien vor den
+    // Produkten an – die Zähler blieben sonst dauerhaft auf 0 stehen.
+    saveCache('bk_prods',products);renderCategories();if(currentCategory)renderProducts(currentCategory);renderAdminProducts();renderZuordnung();updateStats();
     scheduleAutoPreload();
   },e=>console.log('Prod err:',e));
   auth.onAuthStateChanged(user=>{
