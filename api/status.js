@@ -7,7 +7,7 @@
  */
 
 import { list } from '@vercel/blob';
-import { blobAuth, blobEnvNamen } from './_blob-auth.js';
+import { blobAuth, blobEnvNamen, blobQuelle } from './_blob-auth.js';
 
 export default async function handler(req, res) {
   const status = {
@@ -21,8 +21,7 @@ export default async function handler(req, res) {
   let auth;
   try {
     auth = blobAuth();
-    status.verfahren = auth.token ? 'fester Token (BLOB_READ_WRITE_TOKEN)'
-                                  : 'OIDC (VERCEL_OIDC_TOKEN + BLOB_STORE_ID)';
+    status.verfahren = blobQuelle();
   } catch (e) {
     status.hinweis = e.message;
     return res.status(200).json(status);

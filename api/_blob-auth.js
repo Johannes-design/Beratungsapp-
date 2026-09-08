@@ -1,39 +1,54 @@
 /* Ermittelt die Zugangsdaten für den Blob-Store.
  *
- * Vercel kennt zwei Verfahren, und welches beim Verbinden eines Stores angelegt
- * wird, hängt vom Alter des Projekts ab:
+ * Die Namen der Variablen hängen davon ab, wie der Store angelegt wurde. Ohne
+ * Präfix heißen sie BLOB_READ_WRITE_TOKEN und BLOB_STORE_ID; mit dem Präfix
+ * KATALOG entsprechend KATALOG_READ_WRITE_TOKEN und KATALOG_STORE_ID.
  *
- *   alt  – ein fester Schlüssel in BLOB_READ_WRITE_TOKEN
- *   neu  – ein automatisch rotierender VERCEL_OIDC_TOKEN plus BLOB_STORE_ID
- *
- * Dieses Projekt hat BLOB_STORE_ID, also das neue Verfahren. Hier werden beide
- * unterstützt, damit ein späterer Wechsel nichts kaputt macht.
- *
- * Rückgabe ist ein Options-Objekt, das direkt an put()/list() weitergereicht wird.
+ * Dieses Projekt hat zwei Stores verbunden – den alten privaten (BLOB_*, leer,
+ * unbenutzt) und den öffentlichen für den Katalog (KATALOG_*). Deshalb wird hier
+ * nicht auf feste Namen gesetzt, sondern nach einem Schreib-Token gesucht und die
+ * Store-ID mit DEMSELBEN Präfix dazugeholt. Sonst käme der Token des einen Stores
+ * mit der ID des anderen zusammen.
  */
 
+/* Bevorzugt einen Store, dessen Präfix auf den Katalog hindeutet; sonst den
+   ersten gefundenen. So bleibt es auch bei einer Umbenennung funktionsfähig. */
+function tokenVariableFinden() {
+  const alle = Object.keys(process.env).filter(n => /(^|_)READ_WRITE_TOKEN$/.test(n));
+  if (!alle.length) return null;
+  return alle.find(n => n.startsWith('KATALOG')) || alle.sort()[0];
+}
+
 export function blobAuth() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (token) return { token };
+  const tokenVar = tokenVariableFinden();
+  if (!tokenVar) {
+    throw new Error(
+      'Kein Schreib-Token für den Blob-Speicher gefunden. In Vercel unter Storage ' +
+      'beim verbundenen Store "Add a read-write token env var" aktivieren und neu deployen.'
+    );
+  }
 
-  const oidcToken = process.env.VERCEL_OIDC_TOKEN;
-  const storeId = process.env.BLOB_STORE_ID;
-  if (oidcToken && storeId) return { oidcToken, storeId };
+  const praefix = tokenVar.replace(/_?READ_WRITE_TOKEN$/, '');
+  const storeIdVar = praefix ? praefix + '_STORE_ID' : 'BLOB_STORE_ID';
 
-  const fehlt = [];
-  if (!oidcToken) fehlt.push('VERCEL_OIDC_TOKEN');
-  if (!storeId) fehlt.push('BLOB_STORE_ID');
-  throw new Error(
-    'Blob-Speicher nicht erreichbar – es fehlt: ' + fehlt.join(', ') + '. ' +
-    'In den Projekteinstellungen "Secure Backend Access (OIDC)" aktivieren ' +
-    'oder den Store neu mit dem Projekt verbinden.'
-  );
+  const auth = { token: process.env[tokenVar] };
+  // Store-ID nur mitgeben, wenn sie zum selben Präfix gehört.
+  if (process.env[storeIdVar]) auth.storeId = process.env[storeIdVar];
+  return auth;
 }
 
 /* Nur für die Diagnose: welche einschlägigen Variablen existieren?
    Gibt ausschließlich Namen zurück, niemals Werte. */
 export function blobEnvNamen() {
   return Object.keys(process.env)
-    .filter(n => /BLOB|OIDC/i.test(n))
+    .filter(n => /BLOB|READ_WRITE_TOKEN|STORE_ID/i.test(n))
     .sort();
+}
+
+/* Für die Statusanzeige: welcher Store wird gerade benutzt? */
+export function blobQuelle() {
+  const tokenVar = tokenVariableFinden();
+  if (!tokenVar) return null;
+  const praefix = tokenVar.replace(/_?READ_WRITE_TOKEN$/, '');
+  return { tokenVariable: tokenVar, storeIdVariable: (praefix || 'BLOB') + '_STORE_ID' };
 }
