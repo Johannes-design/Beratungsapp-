@@ -1541,11 +1541,20 @@ function fehlerMelden(was,e){
  */
 let stapelDateien=[];
 
+/* Liefert mehrere Schreibweisen desselben Namens, weil bei Umlauten beides
+   vorkommt: die Datei heisst "Decke weiss schlicht.jpg", das Produkt aber
+   "Decke weiß schlicht". Und "Särge" kann als "Saerge" oder "Sarge" ankommen.
+   Passt eine der Varianten auf eine der anderen, gilt das als Treffer. */
+function normVarianten(s){
+  const roh=String(s||'').toLowerCase();
+  const lang=roh.replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
+  const kurz=roh.replace(/ä/g,'a').replace(/ö/g,'o').replace(/ü/g,'u').replace(/ß/g,'ss');
+  const saeubern=x=>x.normalize('NFKD').replace(/[^a-z0-9]/g,'');
+  return new Set([saeubern(lang),saeubern(kurz)].filter(Boolean));
+}
+
 function normalisiereName(s){
-  return String(s||'')
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]/g,'');
+  return Array.from(normVarianten(s))[0]||'';
 }
 
 function dateinameOhneEndung(name){
@@ -1555,9 +1564,12 @@ function dateinameOhneEndung(name){
 /* Liefert ALLE Produkte, deren Name zum Dateinamen passt. Mehrere sind normal:
    im Katalog kommen Artikelnummern wie 2/80F oder 9100 doppelt vor. */
 function produkteZuDateiname(dateiname){
-  const ziel=normalisiereName(dateinameOhneEndung(dateiname));
-  if(!ziel)return [];
-  return products.filter(p=>normalisiereName(p.name)===ziel);
+  const ziel=normVarianten(dateinameOhneEndung(dateiname));
+  if(!ziel.size)return [];
+  return products.filter(p=>{
+    for(const v of normVarianten(p.name)){if(ziel.has(v))return true}
+    return false;
+  });
 }
 
 function stapelDrop(ev){
