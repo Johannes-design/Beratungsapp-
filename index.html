@@ -234,6 +234,29 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .picker-thumb img{width:100%;height:100%;object-fit:contain;padding:6px}
 .picker-badge{position:absolute;bottom:4px;left:4px;right:4px;background:var(--gold);color:#3a2a12;font-size:0.65rem;font-weight:700;padding:2px 4px;border-radius:5px;text-align:center}
 .picker-actions{display:flex;gap:0.6rem;flex-wrap:wrap;padding:0 1.4rem 1.2rem}
+.drop-zone{border:2px dashed var(--warm-gray);border-radius:14px;padding:2.2rem 1.2rem;text-align:center;cursor:pointer;transition:var(--transition);background:var(--warm-white)}
+.drop-zone:hover,.drop-zone.over{border-color:var(--gold);background:#fdf9f1}
+.drop-zone .dz-icon{font-size:2rem;margin-bottom:0.5rem}
+.drop-zone p{font-size:0.95rem;color:var(--text-dark);margin-bottom:0.3rem}
+.drop-zone span{font-size:0.78rem;color:var(--text-light)}
+.stapel-kopf{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin:1.3rem 0 0.9rem}
+.stapel-kopf #stapelInfo{font-size:0.88rem;color:var(--text-muted)}
+.stapel-fortschritt{margin-bottom:1rem}
+.sf-balken{height:8px;background:var(--warm-gray);border-radius:5px;overflow:hidden}
+.sf-fuell{height:100%;width:0;background:var(--gold);transition:width 0.25s ease}
+.sf-text{font-size:0.8rem;color:var(--text-muted);margin-top:0.4rem}
+.stapel-liste{display:flex;flex-direction:column;gap:0.55rem;max-height:60vh;overflow-y:auto}
+.stapel-zeile{display:grid;grid-template-columns:56px 1fr auto;gap:0.85rem;align-items:center;border:1.5px solid var(--warm-gray);border-radius:11px;padding:0.6rem 0.8rem;background:var(--cream)}
+.stapel-zeile.ok{border-color:#2E7D32;background:#f3f9f3}
+.stapel-zeile.fehler{border-color:#C62828;background:#fdf4f4}
+.sz-bild{width:56px;height:56px;border-radius:8px;object-fit:contain;background:#f5f0ea;padding:3px}
+.sz-name{font-size:0.85rem;font-weight:600;word-break:break-all;line-height:1.3}
+.sz-status{font-size:0.75rem;color:var(--text-light);margin-top:2px}
+.sz-status.gut{color:#2E7D32;font-weight:600}
+.sz-status.warn{color:var(--gold-dark);font-weight:600}
+.sz-status.schlecht{color:#C62828;font-weight:600}
+.sz-wahl{min-width:190px;padding:0.4rem 0.6rem;border:1.5px solid var(--warm-gray);border-radius:8px;font-family:inherit;font-size:0.8rem;background:var(--warm-white);color:var(--text-dark)}
+@media(max-width:640px){.stapel-zeile{grid-template-columns:44px 1fr}.sz-wahl{grid-column:1/-1;min-width:0;width:100%}.sz-bild{width:44px;height:44px}}
 footer{text-align:center;padding:2rem 1.5rem;border-top:1px solid rgba(90,26,34,0.06);margin-top:3rem}
 footer p{font-size:0.78rem;color:var(--text-light);font-weight:300}
 footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decoration:underline}
@@ -343,6 +366,7 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
       <div class="admin-tabs">
         <button class="active" onclick="switchAdminTab('categories',this)">Kategorien</button>
         <button onclick="switchAdminTab('products',this)">Produkte</button>
+        <button onclick="switchAdminTab('stapel',this)">📤 Stapel-Upload</button>
         <button onclick="switchAdminTab('zuordnung',this)">🔗 Zuordnung</button>
         <button onclick="switchAdminTab('bulk',this)">Bulk-Aktionen</button>
         <button onclick="switchAdminTab('account',this)">Konto</button>
@@ -386,6 +410,42 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
           <h3>Produkte</h3>
           <div class="form-group"><label>Filter nach Kategorie</label><select id="prodFilterCat" onchange="renderAdminProducts()"><option value="">Alle</option></select></div>
           <ul class="admin-list" id="adminProdList"></ul>
+        </div>
+      </div>
+      <div id="tab-stapel" class="admin-tab-content">
+        <div class="admin-section">
+          <h3>Viele Bilder auf einmal</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
+            Alle Bilder gleichzeitig auswählen oder hier hineinziehen. Die App erkennt am Dateinamen,
+            zu welchem Produkt ein Bild gehört — bei Urnen also z.&nbsp;B. <code>2018.png</code> für das
+            Produkt <strong>2018</strong>. Was nicht eindeutig ist, stellst du unten selbst ein.
+            Jedes Bild wird automatisch verkleinert und in WebP umgewandelt.
+          </p>
+          <div class="drop-zone" id="dropZone"
+               ondragover="event.preventDefault();this.classList.add('over')"
+               ondragleave="this.classList.remove('over')"
+               ondrop="stapelDrop(event)"
+               onclick="document.getElementById('stapelInput').click()">
+            <div class="dz-icon">📤</div>
+            <p><strong>Bilder hierher ziehen</strong> oder klicken zum Auswählen</p>
+            <span>Mehrere gleichzeitig möglich · JPG, PNG, WebP</span>
+          </div>
+          <input type="file" id="stapelInput" accept="image/*" multiple style="display:none" onchange="stapelDateienWaehlen(this.files)">
+
+          <div id="stapelBereich" style="display:none">
+            <div class="stapel-kopf">
+              <div id="stapelInfo"></div>
+              <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+                <button class="btn btn-outline btn-sm" onclick="stapelLeeren()">Liste leeren</button>
+                <button class="btn btn-primary btn-sm" id="stapelStartBtn" onclick="stapelHochladen()">Hochladen &amp; zuordnen</button>
+              </div>
+            </div>
+            <div class="stapel-fortschritt" id="stapelFortschritt" style="display:none">
+              <div class="sf-balken"><div class="sf-fuell" id="stapelBalken"></div></div>
+              <div class="sf-text" id="stapelFortschrittText"></div>
+            </div>
+            <div class="stapel-liste" id="stapelListe"></div>
+          </div>
         </div>
       </div>
       <div id="tab-zuordnung" class="admin-tab-content">
@@ -1469,6 +1529,175 @@ function fehlerMelden(was,e){
   }
   toast(was+': '+grund,'error');
   alert('⚠️ '+was+'\n\n'+grund+(code?'\n\n(Code: '+code+')':''));
+}
+
+/* === STAPEL-UPLOAD ===
+ * Viele Bilder auf einmal hochladen und automatisch dem passenden Produkt zuordnen.
+ *
+ * Die Erkennung läuft über den Dateinamen. Bei den Urnen ist der Produktname die
+ * Artikelnummer des Lieferanten ("2/80F", "1022-SK"), und die Bilddateien heissen
+ * genauso. Verglichen wird deshalb normalisiert: alles ausser Buchstaben und Ziffern
+ * fliegt raus, damit "2_80F.png", "2-80f.jpg" und "2/80F" zusammenfinden.
+ */
+let stapelDateien=[];
+
+function normalisiereName(s){
+  return String(s||'')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]/g,'');
+}
+
+function dateinameOhneEndung(name){
+  return String(name||'').replace(/\.[^.]+$/,'');
+}
+
+/* Liefert ALLE Produkte, deren Name zum Dateinamen passt. Mehrere sind normal:
+   im Katalog kommen Artikelnummern wie 2/80F oder 9100 doppelt vor. */
+function produkteZuDateiname(dateiname){
+  const ziel=normalisiereName(dateinameOhneEndung(dateiname));
+  if(!ziel)return [];
+  return products.filter(p=>normalisiereName(p.name)===ziel);
+}
+
+function stapelDrop(ev){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('over');
+  const dt=ev.dataTransfer;
+  if(dt&&dt.files&&dt.files.length)stapelDateienWaehlen(dt.files);
+}
+
+function stapelDateienWaehlen(fileList){
+  const neue=Array.from(fileList||[]).filter(f=>f.type.startsWith('image/'));
+  if(!neue.length)return toast('Keine Bilddateien dabei','error');
+  neue.forEach(f=>{
+    const treffer=produkteZuDateiname(f.name);
+    stapelDateien.push({
+      id:'s'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      datei:f,
+      vorschau:URL.createObjectURL(f),
+      produktIds:treffer.map(p=>p.id),
+      status:'wartet',
+      meldung:''
+    });
+  });
+  document.getElementById('stapelInput').value='';
+  renderStapel();
+}
+
+function stapelLeeren(){
+  stapelDateien.forEach(s=>{try{URL.revokeObjectURL(s.vorschau)}catch(e){}});
+  stapelDateien=[];
+  document.getElementById('stapelFortschritt').style.display='none';
+  renderStapel();
+}
+
+function stapelZuordnungAendern(id,wert){
+  const eintrag=stapelDateien.find(s=>s.id===id);
+  if(!eintrag)return;
+  eintrag.produktIds=wert?[wert]:[];
+  renderStapel();
+}
+
+function renderStapel(){
+  const bereich=document.getElementById('stapelBereich');
+  const liste=document.getElementById('stapelListe');
+  const info=document.getElementById('stapelInfo');
+  if(!bereich||!liste)return;
+
+  if(!stapelDateien.length){bereich.style.display='none';liste.innerHTML='';return}
+  bereich.style.display='block';
+
+  const erkannt=stapelDateien.filter(s=>s.produktIds.length).length;
+  info.innerHTML='<strong>'+stapelDateien.length+'</strong> Bilder · '+
+                 erkannt+' automatisch erkannt · '+
+                 (stapelDateien.length-erkannt)+' brauchen deine Zuordnung';
+
+  // Auswahlliste einmal bauen statt pro Zeile – bei 83 Produkten sonst spürbar träge.
+  const optionen=products.slice()
+    .sort((a,b)=>(a.name||'').localeCompare(b.name||''))
+    .map(p=>{
+      const k=categories.find(c=>c.id===p.categoryId);
+      return '<option value="'+p.id+'">'+esc(p.name)+(k?' — '+esc(k.name):'')+'</option>';
+    }).join('');
+
+  liste.innerHTML=stapelDateien.map(s=>{
+    let klasse='',statusKlasse='',statusText;
+    if(s.status==='fertig'){klasse='ok';statusKlasse='gut';statusText='✓ '+s.meldung}
+    else if(s.status==='fehler'){klasse='fehler';statusKlasse='schlecht';statusText='✗ '+s.meldung}
+    else if(s.status==='laeuft'){statusText='wird hochgeladen…'}
+    else if(s.produktIds.length>1){statusKlasse='gut';statusText='erkannt · '+s.produktIds.length+' Produkte mit diesem Namen'}
+    else if(s.produktIds.length===1){
+      const p=products.find(x=>x.id===s.produktIds[0]);
+      statusKlasse='gut';statusText='erkannt: '+(p?p.name:'?');
+    }
+    else{statusKlasse='warn';statusText='kein Produkt erkannt – bitte wählen'}
+
+    const auswahl=(s.status==='fertig')?'':
+      '<select class="sz-wahl" onchange="stapelZuordnungAendern(\''+s.id+'\',this.value)">'+
+      '<option value="">– nicht zuordnen, nur hochladen –</option>'+optionen+'</select>';
+
+    return '<div class="stapel-zeile '+klasse+'">'+
+      '<img class="sz-bild" src="'+s.vorschau+'" alt="">'+
+      '<div><div class="sz-name">'+esc(s.datei.name)+'</div>'+
+      '<div class="sz-status '+statusKlasse+'">'+esc(statusText)+'</div></div>'+
+      auswahl+'</div>';
+  }).join('');
+
+  // Vorauswahl in den Auswahlfeldern setzen (geht in HTML-Strings nicht zuverlässig).
+  stapelDateien.forEach((s,i)=>{
+    if(s.produktIds.length===1){
+      const sel=liste.children[i]&&liste.children[i].querySelector('select');
+      if(sel)sel.value=s.produktIds[0];
+    }
+  });
+}
+
+async function stapelHochladen(){
+  if(!stapelDateien.length)return;
+  if(!currentUser)return toast('Bitte zuerst anmelden','error');
+
+  const offen=stapelDateien.filter(s=>s.status!=='fertig');
+  if(!offen.length)return toast('Alles schon hochgeladen','success');
+
+  const btn=document.getElementById('stapelStartBtn');
+  const fortschritt=document.getElementById('stapelFortschritt');
+  const balken=document.getElementById('stapelBalken');
+  const text=document.getElementById('stapelFortschrittText');
+  btn.disabled=true;
+  fortschritt.style.display='block';
+
+  let fertig=0,fehler=0;
+  for(const s of offen){
+    s.status='laeuft';renderStapel();
+    text.textContent='Bild '+(fertig+1)+' von '+offen.length+': '+s.datei.name;
+    try{
+      const url=await uploadImage(s.datei,'products');
+      // Dasselbe Bild kann an mehreren Produkten hängen (doppelte Artikelnummern).
+      for(const pid of s.produktIds){
+        await db.collection('products').doc(pid).update({imageUrl:url});
+      }
+      s.status='fertig';
+      s.meldung=s.produktIds.length
+        ? 'zugeordnet ('+s.produktIds.length+')'
+        : 'hochgeladen, noch keinem Produkt zugeordnet';
+    }catch(e){
+      s.status='fehler';
+      s.meldung=(e&&e.message)||'unbekannter Fehler';
+      fehler++;
+      console.error('Stapel-Upload',s.datei.name,e);
+    }
+    fertig++;
+    balken.style.width=Math.round(fertig/offen.length*100)+'%';
+    renderStapel();
+  }
+
+  btn.disabled=false;
+  text.textContent='Fertig: '+(fertig-fehler)+' von '+offen.length+' erfolgreich'+(fehler?', '+fehler+' fehlgeschlagen':'');
+  toast(fehler?('Fertig – '+fehler+' fehlgeschlagen'):('✓ '+fertig+' Bilder übernommen'),fehler?'error':'success');
+  // Neu hochgeladene Bilder sollen sofort offline verfügbar sein.
+  scheduleAutoPreload(1500);
+  _storageImgCache=null;
 }
 
 function onSearch(){
