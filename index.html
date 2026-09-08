@@ -107,6 +107,11 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .product-card:hover,.product-card:active{transform:translateY(-2px);box-shadow:var(--shadow-md)}
 .product-card-img{width:100%;height:380px;object-fit:cover;background:#f5f0ea;display:flex;align-items:center;justify-content:center}
 .product-card-img img{width:100%;height:100%;object-fit:contain;padding:14px}
+.bild-fehlt{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.5rem;background:repeating-linear-gradient(45deg,#f7f2ec,#f7f2ec 12px,#f3ece4 12px,#f3ece4 24px);color:var(--text-light)}
+.bild-fehlt .bf-zeichen{font-size:1.9rem;opacity:0.45;line-height:1}
+.bild-fehlt .bf-text{font-size:0.76rem;letter-spacing:0.09em;text-transform:uppercase;font-weight:600}
+.cat-card-img .bild-fehlt{background:none;color:var(--gold)}
+.cat-card-img .bild-fehlt .bf-zeichen{opacity:0.75}
 .product-card-body{padding:1rem 1.15rem 1.15rem;text-align:center}
 .product-card-body h4{font-family:var(--font-display);font-size:1.25rem;font-weight:500;color:var(--bordeaux);margin-bottom:0.25rem;line-height:1.2}
 .product-card-body .price{font-size:0.92rem;color:var(--gold-dark);font-weight:600}
@@ -861,7 +866,7 @@ function renderCategories(){
   if(!categories.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">📋</div><p>Noch keine Kategorien angelegt.<br>Melden Sie sich in der Verwaltung an.</p></div>';return}
   grid.innerHTML=categories.map(cat=>{
     const count=products.filter(p=>p.categoryId===cat.id).length;
-    const img=cat.imageUrl?'<img src="'+cat.imageUrl+'" alt="'+esc(cat.name)+'" loading="lazy">':'<span>'+(cat.icon||'📁')+'</span>';
+    const img=cat.imageUrl?'<img src="'+cat.imageUrl+'" alt="'+esc(cat.name)+'" loading="lazy" onerror="bildFehlt(this)">':'<span>'+(cat.icon||'📁')+'</span>';
     return '<div class="cat-card" onclick="openCategory(\''+cat.id+'\')"><div class="cat-card-img">'+img+'</div><span class="cat-card-count">'+count+' '+(count===1?'Produkt':'Produkte')+'</span><div class="cat-card-body"><h3>'+esc(cat.name)+'</h3><p>'+esc(cat.description||'')+'</p></div></div>';
   }).join('');
 
@@ -908,7 +913,7 @@ function renderProducts(catId){
   // Sortiert nach Name für stabile Reihenfolge
   filtered.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   grid.innerHTML=filtered.map(prod=>{
-    const img=prod.imageUrl?'<img src="'+prod.imageUrl+'" alt="'+esc(prod.name)+'" loading="lazy" decoding="async">':'';
+    const img=prod.imageUrl?'<img src="'+prod.imageUrl+'" alt="'+esc(prod.name)+'" loading="lazy" decoding="async" onerror="bildFehlt(this)">':'';
     return '<div class="product-card" onclick="openProductModalById(\''+prod.id+'\')"><div class="product-card-img">'+img+'</div><div class="product-card-body"><h4>'+esc(prod.name)+'</h4>'+(prod.price?'<div class="price">'+esc(prod.price)+'</div>':'')+'</div></div>';
   }).join('');
 
@@ -1518,6 +1523,18 @@ function blobAlsBase64(blob){
 function previewFile(input,id){const p=document.getElementById(id);if(input.files[0]){const r=new FileReader();r.onload=e=>{p.src=e.target.result;p.style.display='block'};r.readAsDataURL(input.files[0])}else p.style.display='none'}
 function toast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type;setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>t.classList.remove('show'),3000)}
 function esc(str){const d=document.createElement('div');d.textContent=str||'';return d.innerHTML}
+
+/* Lässt sich ein Bild nicht laden, tritt an seine Stelle ein ruhiger Platzhalter
+   statt des zerbrochenen Browser-Symbols. Betrifft aktuell die Produkte, deren
+   Bild noch beim abgeschalteten Firebase Storage liegt – im Beratungsgespräch
+   soll das nach "Bild folgt" aussehen und nicht nach kaputter App. */
+function bildFehlt(img){
+  if(!img||img.dataset.ersetzt)return;
+  img.dataset.ersetzt='1';
+  const huelle=img.parentElement;
+  if(!huelle)return;
+  huelle.innerHTML='<div class="bild-fehlt"><span class="bf-zeichen">🕊</span><span class="bf-text">Bild folgt</span></div>';
+}
 
 /* Fehler sichtbar machen.
  * Vorher liefen addProduct/saveEditProd/addCategory/saveEditCat ohne try/catch:
