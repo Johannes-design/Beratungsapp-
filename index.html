@@ -46,6 +46,12 @@ body{font-family:var(--font-body);background:var(--cream);color:var(--text-dark)
 .cache-status .mini-spin{width:11px;height:11px;border:1.5px solid rgba(197,165,90,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0}
 .cache-status.done .mini-spin{display:none}
 .cache-status.done::before{content:'✓';color:var(--gold);font-weight:700;font-size:0.95rem}
+.update-bar{position:fixed;left:1rem;right:1rem;bottom:1rem;z-index:9500;background:var(--bordeaux);color:var(--cream);border:1px solid var(--gold-dark);border-radius:14px;padding:0.85rem 1.1rem;display:none;align-items:center;gap:0.9rem;flex-wrap:wrap;box-shadow:var(--shadow-lg);max-width:520px;margin:0 auto}
+.update-bar.show{display:flex}
+.update-bar p{font-size:0.85rem;flex:1;min-width:180px;line-height:1.45}
+.update-bar button{border:none;border-radius:8px;padding:0.45rem 0.9rem;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:inherit}
+.update-bar .u-now{background:var(--gold);color:#3a2a12}
+.update-bar .u-later{background:transparent;color:var(--cream);border:1px solid rgba(250,247,242,0.35)}
 
 header{position:sticky;top:0;z-index:100;background:rgba(90,26,34,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(197,165,90,0.2)}
 .header-inner{max-width:1200px;margin:0 auto;padding:0.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between}
@@ -206,6 +212,28 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .btn-danger{background:#DC3545;color:#fff}.btn-danger:hover{background:#C82333}
 .btn-danger:disabled{background:#888;cursor:not-allowed;opacity:0.6}
 .admin-tab-content{display:none}.admin-tab-content.active{display:block;animation:fadeUp 0.3s ease}
+.zuordnung-toolbar{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.25rem}
+.zuordnung-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem}
+.zuordnung-card{border:1.5px solid var(--warm-gray);border-radius:12px;padding:0.75rem;display:flex;flex-direction:column;gap:0.6rem;background:var(--cream)}
+.zuordnung-card.missing{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.zuordnung-imgwrap{width:100%;height:150px;border-radius:8px;overflow:hidden;background:#f5f0ea;display:flex;align-items:center;justify-content:center}
+.zuordnung-imgwrap img{width:100%;height:100%;object-fit:contain;padding:6px}
+.zuordnung-noimg{color:var(--text-light);text-align:center;font-size:0.8rem;line-height:1.5}
+.zuordnung-name{font-weight:600;font-size:0.9rem;line-height:1.3}
+.zuordnung-sub{font-size:0.75rem;color:var(--text-light);margin-top:2px}
+.picker-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:none;align-items:center;justify-content:center;padding:1.5rem}
+.picker-overlay.active{display:flex}
+.picker-panel{background:var(--cream);border-radius:16px;max-width:900px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.picker-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.1rem 1.4rem;border-bottom:1px solid var(--warm-gray)}
+.picker-head h3{margin:0;font-size:1.05rem}
+.picker-body{padding:1.2rem 1.4rem;overflow-y:auto}
+.picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.8rem}
+.picker-thumb{position:relative;border:2px solid var(--warm-gray);border-radius:10px;overflow:hidden;background:#f5f0ea;cursor:pointer;padding:0;aspect-ratio:1;transition:var(--transition)}
+.picker-thumb:hover{border-color:var(--bordeaux)}
+.picker-thumb.current{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+.picker-thumb img{width:100%;height:100%;object-fit:contain;padding:6px}
+.picker-badge{position:absolute;bottom:4px;left:4px;right:4px;background:var(--gold);color:#3a2a12;font-size:0.65rem;font-weight:700;padding:2px 4px;border-radius:5px;text-align:center}
+.picker-actions{display:flex;gap:0.6rem;flex-wrap:wrap;padding:0 1.4rem 1.2rem}
 footer{text-align:center;padding:2rem 1.5rem;border-top:1px solid rgba(90,26,34,0.06);margin-top:3rem}
 footer p{font-size:0.78rem;color:var(--text-light);font-weight:300}
 footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decoration:underline}
@@ -245,6 +273,11 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
 <div id="toast" class="toast"></div>
 <div class="offline-badge" id="offlineBadge">Offline</div>
 <div class="cache-status" id="cacheStatus"><span class="mini-spin"></span><span id="cacheStatusText">Bilder werden gespeichert…</span></div>
+<div class="update-bar" id="updateBar">
+  <p>Eine neue Version der App ist bereit.</p>
+  <button class="u-later" onclick="updateSpaeter()">Später</button>
+  <button class="u-now" onclick="updateJetztLaden()">Jetzt laden</button>
+</div>
 <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileNav()"></div>
 <div class="mobile-drawer" id="mobileDrawer">
   <button class="drawer-close" onclick="closeMobileNav()">✕</button>
@@ -303,14 +336,14 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
       <div class="admin-header"><h2>Verwaltung</h2><button class="btn btn-outline btn-sm" onclick="doLogout()">Abmelden</button></div>
       <div class="admin-stats" id="adminStats"></div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
-        <button class="btn btn-outline btn-sm" onclick="manualPreload()" title="Bilder jetzt für Offline laden">📥 Bilder offline speichern</button>
-        <button class="btn btn-outline btn-sm" onclick="checkCacheStatus()" title="Cache-Status prüfen">🔍 Status prüfen</button>
-        <button class="btn btn-outline btn-sm" onclick="runDiagnose()" title="Diagnose – warum klappt Offline nicht">🧪 Diagnose</button>
-        <button class="btn btn-outline btn-sm" onclick="clearImageCache()" title="Bilder-Cache leeren">🗑 Cache leeren</button>
+        <button class="btn btn-outline btn-sm" onclick="bilderOfflineSpeichern(true)" title="Bilder jetzt für Offline laden">📥 Bilder offline speichern</button>
+        <button class="btn btn-outline btn-sm" onclick="bilderStatusPruefen()" title="Wie viele Bilder liegen offline bereit?">🔍 Status prüfen</button>
+        <button class="btn btn-outline btn-sm" onclick="bilderCacheLeeren()" title="Bilder-Cache leeren">🗑 Cache leeren</button>
       </div>
       <div class="admin-tabs">
         <button class="active" onclick="switchAdminTab('categories',this)">Kategorien</button>
         <button onclick="switchAdminTab('products',this)">Produkte</button>
+        <button onclick="switchAdminTab('zuordnung',this)">🔗 Zuordnung</button>
         <button onclick="switchAdminTab('bulk',this)">Bulk-Aktionen</button>
         <button onclick="switchAdminTab('account',this)">Konto</button>
       </div>
@@ -353,6 +386,17 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
           <h3>Produkte</h3>
           <div class="form-group"><label>Filter nach Kategorie</label><select id="prodFilterCat" onchange="renderAdminProducts()"><option value="">Alle</option></select></div>
           <ul class="admin-list" id="adminProdList"></ul>
+        </div>
+      </div>
+      <div id="tab-zuordnung" class="admin-tab-content">
+        <div class="admin-section">
+          <h3>Bilder zuordnen</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">Prüfe hier, welches Bild an jedem Produkt hängt, und hänge es per Klick auf das richtige um — du wählst aus allen <strong>bereits hochgeladenen</strong> Bildern, ohne neu hochladen zu müssen. Produkte <strong>ohne Bild</strong> sind hervorgehoben und stehen oben.</p>
+          <div class="zuordnung-toolbar">
+            <div class="form-group" style="margin:0;min-width:220px"><label>Kategorie</label><select id="zuordnungFilterCat" onchange="renderZuordnung()"><option value="">Alle</option></select></div>
+            <div id="zuordnungInfo" style="font-size:0.82rem;color:var(--text-light);padding-bottom:0.6rem"></div>
+          </div>
+          <div class="zuordnung-grid" id="zuordnungGrid"></div>
         </div>
       </div>
       <div id="tab-bulk" class="admin-tab-content">
@@ -492,472 +536,217 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
 </div>
 <footer><p>&copy; 2026 Bestattungshaus Kallwaß · <a href="#" onclick="navTo('admin');return false">Verwaltung</a></p></footer>
 
+<div class="picker-overlay" id="pickerModal">
+  <div class="picker-panel">
+    <div class="picker-head">
+      <h3 id="pickerTitle">Bild wählen</h3>
+      <div style="display:flex;gap:0.5rem">
+        <button class="btn btn-outline btn-sm" onclick="refreshPickerImages()" title="Bilderliste neu laden">↻ Neu laden</button>
+        <button class="btn btn-outline btn-sm" onclick="closeImagePicker()">✕</button>
+      </div>
+    </div>
+    <div class="picker-body">
+      <div class="picker-grid" id="pickerGrid"></div>
+    </div>
+    <div class="picker-actions">
+      <input type="file" accept="image/*" id="pickerUpload" style="display:none" onchange="uploadFromPicker(this)">
+      <button class="btn btn-gold btn-sm" onclick="document.getElementById('pickerUpload').click()">＋ Neues Bild hochladen</button>
+      <button class="btn btn-outline btn-sm" onclick="removeImageFromProd()">Bild entfernen</button>
+    </div>
+  </div>
+</div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 <script>
 const firebaseConfig={apiKey:"AIzaSyDzxxj-kK4eo2RgW-ZQt26cJzHGRs75WbQ",authDomain:"beratungsapp-bh-kallwass.firebaseapp.com",projectId:"beratungsapp-bh-kallwass",storageBucket:"beratungsapp-bh-kallwass.firebasestorage.app",messagingSenderId:"828236712026",appId:"1:828236712026:web:40ed5111d7720d3a10b063"};
 firebase.initializeApp(firebaseConfig);
-const auth=firebase.auth(),db=firebase.firestore(),storage=firebase.storage();
+const auth=firebase.auth(),db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(e=>console.log('Persistence:',e.code));
 
 let categories=[],products=[],currentUser=null,currentCategory=null,currentSubcatFilter=null,editingCatId=null;
 function saveCache(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch(e){}}
 function loadCache(k){try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]}}
 
-/* === SERVICE WORKER === */
+/* === SERVICE WORKER ===
+ * Wichtig: KEIN automatisches Update mehr. Die alte Fassung rief bei einer neuen
+ * Version sofort skipWaiting() und danach window.location.reload() auf – das riss
+ * die Seite mitten im Beratungsgespräch weg und sprang zurück zur Startseite.
+ * Jetzt wartet die neue Version, und der Nutzer entscheidet per Hinweis-Leiste. */
+let wartenderSW=null;
+
+function updateHinweisZeigen(){
+  const bar=document.getElementById('updateBar');
+  if(bar)bar.classList.add('show');
+}
+
+function updateJetztLaden(){
+  const bar=document.getElementById('updateBar');
+  if(bar)bar.classList.remove('show');
+  if(wartenderSW){
+    // Nach dem Wechsel übernimmt der neue SW – controllerchange lädt dann neu.
+    darfNeuLaden=true;
+    wartenderSW.postMessage({type:'SKIP_WAITING'});
+  } else {
+    window.location.reload();
+  }
+}
+
+function updateSpaeter(){
+  const bar=document.getElementById('updateBar');
+  if(bar)bar.classList.remove('show');
+}
+
+let darfNeuLaden=false;
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('sw.js').then(reg=>{
-      console.log('SW registered',reg.scope);
-      // Update-Check bei neuem Aufruf
+      console.log('SW registriert',reg.scope);
       reg.update();
+      // Wartet bereits eine neue Version vom letzten Besuch?
+      if(reg.waiting&&navigator.serviceWorker.controller){
+        wartenderSW=reg.waiting;updateHinweisZeigen();
+      }
       reg.addEventListener('updatefound',()=>{
         const nw=reg.installing;
-        if(nw){
-          nw.addEventListener('statechange',()=>{
-            if(nw.state==='installed'&&navigator.serviceWorker.controller){
-              // Neue Version verfügbar – sanftes Update
-              nw.postMessage({type:'SKIP_WAITING'});
-            }
-          });
-        }
+        if(!nw)return;
+        nw.addEventListener('statechange',()=>{
+          // controller!=null heißt: es lief schon eine Version, das ist ein echtes Update
+          if(nw.state==='installed'&&navigator.serviceWorker.controller){
+            wartenderSW=nw;updateHinweisZeigen();
+          }
+        });
       });
-    }).catch(e=>console.log('SW error',e));
-    // Wenn neuer SW Kontrolle übernimmt: einmal reloaden
-    let refreshing=false;
+    }).catch(e=>console.log('SW Fehler',e));
+
+    // Nur neu laden, wenn der Nutzer das Update selbst angestoßen hat.
     navigator.serviceWorker.addEventListener('controllerchange',()=>{
-      if(refreshing)return;
-      refreshing=true;
+      if(!darfNeuLaden)return;
+      darfNeuLaden=false;
       window.location.reload();
     });
   });
 }
 
-/* === ONLINE/OFFLINE INDIKATOR === */
-let offlineBadgeTimer=null;
+/* === ONLINE/OFFLINE INDIKATOR ===
+ * Der Hinweis bleibt jetzt stehen, solange keine Verbindung besteht. Vorher blendete
+ * er sich nach 3 Sekunden aus – gerade im Trauerhaus ohne Empfang genau verkehrt. */
 function updateOnlineState(){
   const badge=document.getElementById('offlineBadge');
-  if(offlineBadgeTimer){clearTimeout(offlineBadgeTimer);offlineBadgeTimer=null}
-  if(navigator.onLine){
-    badge.classList.remove('show');
-  } else {
-    // Kurz anzeigen, dann automatisch ausblenden
-    badge.classList.add('show');
-    offlineBadgeTimer=setTimeout(()=>{
-      badge.classList.remove('show');
-    },3000);
-  }
+  if(!badge)return;
+  badge.classList.toggle('show',!navigator.onLine);
 }
 window.addEventListener('online',updateOnlineState);
 window.addEventListener('offline',updateOnlineState);
 
-/* === INDEXEDDB FÜR OFFLINE-BILDER (bulletproof) === */
-const IDB_NAME='bk_offline_images',IDB_STORE='blobs',IDB_VERSION=1;
-let _idbPromise=null;
-function idbOpen(){
-  if(_idbPromise)return _idbPromise;
-  _idbPromise=new Promise((resolve,reject)=>{
-    if(!('indexedDB' in window))return reject(new Error('IndexedDB nicht verfügbar'));
-    const req=indexedDB.open(IDB_NAME,IDB_VERSION);
-    req.onerror=()=>reject(req.error);
-    req.onsuccess=()=>resolve(req.result);
-    req.onupgradeneeded=()=>{
-      const db=req.result;
-      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
-    };
-  });
-  return _idbPromise;
-}
-async function idbSaveBlob(url,blob){
-  const db=await idbOpen();
-  return new Promise((res,rej)=>{
-    const tx=db.transaction(IDB_STORE,'readwrite');
-    tx.objectStore(IDB_STORE).put(blob,url);
-    tx.oncomplete=()=>res();
-    tx.onerror=()=>rej(tx.error);
-  });
-}
-async function idbGetBlob(url){
-  try{
-    const db=await idbOpen();
-    return await new Promise((res,rej)=>{
-      const tx=db.transaction(IDB_STORE,'readonly');
-      const req=tx.objectStore(IDB_STORE).get(url);
-      req.onsuccess=()=>res(req.result||null);
-      req.onerror=()=>rej(req.error);
-    });
-  }catch(e){return null}
-}
-async function idbHasUrl(url){
-  return !!(await idbGetBlob(url));
-}
-async function idbAllKeys(){
-  try{
-    const db=await idbOpen();
-    return await new Promise((res,rej)=>{
-      const tx=db.transaction(IDB_STORE,'readonly');
-      const req=tx.objectStore(IDB_STORE).getAllKeys();
-      req.onsuccess=()=>res(req.result||[]);
-      req.onerror=()=>rej(req.error);
-    });
-  }catch(e){return []}
-}
-async function idbClearAll(){
-  try{
-    const db=await idbOpen();
-    return await new Promise((res,rej)=>{
-      const tx=db.transaction(IDB_STORE,'readwrite');
-      tx.objectStore(IDB_STORE).clear();
-      tx.oncomplete=()=>res();
-      tx.onerror=()=>rej(tx.error);
-    });
-  }catch(e){}
+/* === OFFLINE-BILDER ===
+ *
+ * Bilder liegen ab v2 auf der EIGENEN Domain unter /img/... . Damit sind sie
+ * same-origin, und der Service Worker kann sie ganz normal cachen. Die frühere
+ * Konstruktion (IndexedDB + Blob-URLs + Hydration nach jedem Render, rund 400
+ * Zeilen) ist damit ersatzlos entfallen: ein <img src="/img/..."> funktioniert
+ * offline von allein, sobald der Service Worker die Datei im Cache hat.
+ */
+
+let precacheLaeuft = false;
+
+function swSenden(msg) {
+  const c = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (!c) return false;
+  c.postMessage(msg);
+  return true;
 }
 
-/* Cache von URL -> blob URL (Object URL) in dieser Session */
-const _blobUrlCache=new Map();
-async function getOfflineSrc(url){
-  if(!url)return url;
-  if(_blobUrlCache.has(url))return _blobUrlCache.get(url);
-  const blob=await idbGetBlob(url);
-  if(!blob)return url;
-  const blobUrl=URL.createObjectURL(blob);
-  _blobUrlCache.set(url,blobUrl);
-  return blobUrl;
+/* Alle Bild-URLs aus Kategorien und Produkten, ohne Dubletten. */
+function alleBildUrls() {
+  const urls = new Set();
+  categories.forEach(c => { if (c.imageUrl) urls.add(c.imageUrl) });
+  products.forEach(p => { if (p.imageUrl) urls.add(p.imageUrl) });
+  return Array.from(urls);
 }
 
-/* Hydration: nach Render alle <img> mit Firebase-Storage URLs prüfen
-   und ggf. durch Blob URLs aus IndexedDB ersetzen */
-async function hydrateOfflineImages(root){
-  const scope=root||document;
-  const imgs=scope.querySelectorAll('img');
-  for(const img of imgs){
-    const src=img.getAttribute('src');
-    if(!src)continue;
-    if(src.startsWith('blob:')||src.startsWith('data:'))continue;
-    if(!src.includes('firebasestorage')&&!src.includes('googleapis.com'))continue;
-    const blob=await idbGetBlob(src);
-    if(blob){
-      let blobUrl=_blobUrlCache.get(src);
-      if(!blobUrl){blobUrl=URL.createObjectURL(blob);_blobUrlCache.set(src,blobUrl)}
-      // dataset original-src merken falls wir später wieder wechseln
-      if(!img.dataset.origSrc)img.dataset.origSrc=src;
-      img.src=blobUrl;
-    }
-  }
-  // Auch background-images im Stil prüfen (z.B. Hero-Bilder falls vorhanden)
-  const bgEls=scope.querySelectorAll('[style*="firebasestorage"],[style*="googleapis"]');
-  for(const el of bgEls){
-    const m=(el.getAttribute('style')||'').match(/url\(["']?([^"')]+)["']?\)/);
-    if(!m)continue;
-    const orig=m[1];
-    const blob=await idbGetBlob(orig);
-    if(blob){
-      let blobUrl=_blobUrlCache.get(orig);
-      if(!blobUrl){blobUrl=URL.createObjectURL(blob);_blobUrlCache.set(orig,blobUrl)}
-      el.style.backgroundImage='url("'+blobUrl+'")';
-    }
-  }
+/* --- Statusleiste unten --- */
+function cacheStatusZeigen(text, fertig) {
+  const box = document.getElementById('cacheStatus');
+  const label = document.getElementById('cacheStatusText');
+  if (!box || !label) return;
+  label.textContent = text;
+  box.classList.toggle('done', !!fertig);
+  box.classList.add('show');
 }
-// Nach jedem DOM-Update kann man hydrateOfflineImages() aufrufen
-window.hydrateOfflineImages=hydrateOfflineImages;
-
-/* === IMAGE PRE-LOADING (für Offline-Zugriff) === */
-let preloadInProgress=false;
-let preloadedUrls=new Set(); // alle URLs die diese Session schon erfolgreich gefetched wurden
-
-// Prüft welche Bild-URLs noch NICHT im IndexedDB liegen
-async function getMissingImageUrls(){
-  const allUrls=[];
-  categories.forEach(c=>{if(c.imageUrl)allUrls.push(c.imageUrl)});
-  products.forEach(p=>{if(p.imageUrl)allUrls.push(p.imageUrl)});
-  if(!allUrls.length)return [];
-  // Alle gespeicherten Keys aus IDB einmal holen (schneller als pro URL prüfen)
-  const stored=new Set(await idbAllKeys());
-  return allUrls.filter(u=>!stored.has(u));
+function cacheStatusAusblenden(nachMs) {
+  const box = document.getElementById('cacheStatus');
+  if (!box) return;
+  setTimeout(() => box.classList.remove('show'), nachMs || 3000);
 }
 
-// Hauptfunktion: lädt fehlende Bilder, optional mit UI-Feedback
-// Hilfsfunktion: Cache-Referenz vom Service Worker holen
-async function getImageCache(){
-  try{
-    if('serviceWorker' in navigator)await navigator.serviceWorker.ready;
-  }catch(e){}
-  const keys=await caches.keys();
-  const cacheName=keys.find(k=>k.startsWith('bk-images-'))||'bk-images-v1.2.0';
-  return caches.open(cacheName);
-}
-
-async function preloadImages(opts){
-  opts=opts||{};
-  const showStatus=opts.showStatus===true;
-  const forceAll=opts.forceAll===true;
-  if(preloadInProgress)return;
-  if(!navigator.onLine){if(showStatus)toast('Keine Verbindung','error');return}
-  let urls;
-  if(forceAll){
-    urls=[];
-    categories.forEach(c=>{if(c.imageUrl)urls.push(c.imageUrl)});
-    products.forEach(p=>{if(p.imageUrl)urls.push(p.imageUrl)});
-  } else {
-    urls=await getMissingImageUrls();
-  }
-  if(urls.length===0){
-    if(showStatus){
-      const status=document.getElementById('cacheStatus');
-      const text=document.getElementById('cacheStatusText');
-      status.classList.add('done');
-      text.textContent='Alle Bilder sind bereits offline verfügbar';
-      status.classList.add('show');
-      setTimeout(()=>status.classList.remove('show'),2500);
-    }
+/* --- Bilder für Offline speichern --- */
+function bilderOfflineSpeichern(sichtbar) {
+  if (precacheLaeuft) { if (sichtbar) toast('Läuft schon…'); return }
+  const urls = alleBildUrls();
+  if (!urls.length) { if (sichtbar) toast('Noch keine Bilder vorhanden'); return }
+  if (!navigator.onLine) { if (sichtbar) toast('Keine Verbindung – bitte ins WLAN', 'error'); return }
+  if (!swSenden({ type: 'PRECACHE_IMAGES', urls })) {
+    if (sichtbar) toast('Offline-Speicher noch nicht bereit – Seite neu laden', 'error');
     return;
   }
-  preloadInProgress=true;
-  const status=document.getElementById('cacheStatus');
-  const text=document.getElementById('cacheStatusText');
-  status.classList.remove('done');
-  const showVisualFeedback=showStatus||urls.length>5;
-  if(showVisualFeedback)status.classList.add('show');
-  let done=0,corsOk=0,fallbackOk=0,failed=0;
-  const total=urls.length;
-  text.textContent='Bilder werden gespeichert: 0 / '+total;
-  // Parallele Downloads in Batches von 4
-  const batchSize=4;
-  for(let i=0;i<urls.length;i+=batchSize){
-    const batch=urls.slice(i,i+batchSize);
-    await Promise.all(batch.map(async url=>{
-      // 1. Versuch: CORS-fetch (saubere Response, echte Größe)
-      try{
-        const res=await fetch(url,{mode:'cors',credentials:'omit',cache:'reload'});
-        if(!res.ok)throw new Error('HTTP '+res.status);
-        const blob=await res.blob();
-        await idbSaveBlob(url,blob);
-        preloadedUrls.add(url);
-        corsOk++;
-      }catch(corsErr){
-        // 2. Versuch: <img>-Element mit crossOrigin (umgeht manche CORS-Probleme)
-        try{
-          const blob=await loadImageAsBlob(url);
-          await idbSaveBlob(url,blob);
-          preloadedUrls.add(url);
-          fallbackOk++;
-        }catch(e2){
-          failed++;
-          console.log('Preload fehlgeschlagen für:',url,corsErr.message,e2.message);
-        }
-      }
-      done++;
-      text.textContent='Bilder werden gespeichert: '+done+' / '+total;
-    }));
-  }
-  // Status-Text je nach Ergebnis
-  const success=corsOk+fallbackOk;
-  if(failed>0&&success===0){
-    text.textContent='⚠️ Keine Bilder konnten gespeichert werden';
-  } else if(failed>0){
-    text.textContent='Fertig: '+success+' / '+total+' ('+failed+' fehlgeschlagen)';
-  } else {
-    text.textContent='✓ '+total+(total===1?' Bild':' Bilder')+' offline verfügbar';
-  }
-  status.classList.add('done');
-  if(showVisualFeedback)setTimeout(()=>status.classList.remove('show'),3500);
-  preloadInProgress=false;
-  console.log('Preload-Statistik:',{total,corsOk,fallbackOk,failed});
-  // Nach Pre-Load: alle bereits gerenderten <img> hydraten
-  hydrateOfflineImages();
+  precacheLaeuft = true;
+  if (sichtbar) cacheStatusZeigen('Bilder werden gespeichert…', false);
 }
 
-// Fallback: Bild via <img>-Tag laden, dann via canvas zu Blob konvertieren
-async function loadImageAsBlob(url){
-  return new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.crossOrigin='anonymous';
-    img.onload=()=>{
-      try{
-        const canvas=document.createElement('canvas');
-        canvas.width=img.naturalWidth;
-        canvas.height=img.naturalHeight;
-        const ctx=canvas.getContext('2d');
-        ctx.drawImage(img,0,0);
-        canvas.toBlob(blob=>{
-          if(blob)resolve(blob);else reject(new Error('toBlob failed'));
-        },'image/jpeg',0.85);
-      }catch(e){reject(e)}
-    };
-    img.onerror=()=>reject(new Error('img load failed'));
-    img.src=url;
-  });
+function bilderCacheLeeren() {
+  if (!confirm('Alle offline gespeicherten Bilder löschen?\n\nDie App lädt sie beim nächsten Mal im WLAN neu.')) return;
+  if (!swSenden({ type: 'CLEAR_IMAGES' })) return toast('Offline-Speicher nicht bereit', 'error');
 }
 
-// Manueller Button (Verwaltung)
-async function manualPreload(){
-  if(preloadInProgress)return toast('Läuft schon…');
-  if(!navigator.onLine)return toast('Keine Verbindung – bitte ins WLAN','error');
-  // Erst prüfen wie viele Bilder fehlen
-  const missing=await getMissingImageUrls();
-  const total=categories.filter(c=>c.imageUrl).length+products.filter(p=>p.imageUrl).length;
-  if(missing.length===0){
-    toast('✓ Alle '+total+' Bilder sind bereits offline','success');
-    return;
-  }
-  toast(missing.length+' Bilder werden geladen…','success');
-  preloadImages({showStatus:true});
+function bilderStatusPruefen() {
+  if (!swSenden({ type: 'IMAGE_STATUS' })) return toast('Offline-Speicher nicht bereit', 'error');
 }
 
-// Tiefe Diagnose – findet heraus WARUM Offline nicht klappt
-async function runDiagnose(){
-  if(!navigator.onLine)return alert('⚠️ Bitte zuerst online gehen für Diagnose');
-  // Drei Test-URLs auswählen: 1 Kategorie + 1 Produkt (versch. Kategorien wenn möglich)
-  const tests=[];
-  const cat=categories.find(c=>c.imageUrl);
-  if(cat)tests.push({label:'Kategorie ('+cat.name+')',url:cat.imageUrl});
-  // Pro Kategorie ein Produkt testen
-  const seenCats=new Set();
-  for(const p of products){
-    if(!p.imageUrl||seenCats.has(p.categoryId))continue;
-    seenCats.add(p.categoryId);
-    const c=categories.find(cc=>cc.id===p.categoryId);
-    tests.push({label:'Produkt: '+(c?c.name:'?')+' – '+p.name,url:p.imageUrl});
-    if(tests.length>=5)break;
-  }
-  if(!tests.length)return alert('Keine Bilder zum Testen vorhanden');
-  let report='🧪 DIAGNOSE-REPORT\n\n';
-  // Test 1: IndexedDB Schreib-Test
-  report+='1️⃣ IndexedDB Schreib-Test:\n';
-  try{
-    const testBlob=new Blob(['test'],{type:'text/plain'});
-    await idbSaveBlob('__diagnose_test__',testBlob);
-    const back=await idbGetBlob('__diagnose_test__');
-    if(back){
-      report+='✅ OK\n\n';
-    } else {
-      report+='❌ Schreiben OK aber Lesen leer\n\n';
-    }
-  }catch(e){
-    report+='❌ FEHLER: '+e.message+'\n';
-    report+='(IndexedDB blockiert? Privates Surfen?)\n\n';
-  }
-  // Test 2: für jede URL CORS-Fetch testen
-  report+='2️⃣ Bild-Tests:\n';
-  for(const t of tests){
-    let line=t.label.substring(0,40)+'\n';
-    let corsOk=false,blobSize=0,errMsg='';
-    try{
-      const res=await fetch(t.url,{mode:'cors',credentials:'omit',cache:'reload'});
-      if(res.ok){
-        corsOk=true;
-        const blob=await res.blob();
-        blobSize=blob.size;
+/* --- Antworten des Service Workers --- */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', ev => {
+    const m = ev.data || {};
+
+    if (m.type === 'PRECACHE_PROGRESS') {
+      cacheStatusZeigen('Bilder werden gespeichert: ' + m.done + ' / ' + m.total, false);
+
+    } else if (m.type === 'PRECACHE_DONE') {
+      precacheLaeuft = false;
+      if (m.alreadyComplete) {
+        cacheStatusZeigen('Alle Bilder sind bereits offline verfügbar', true);
+      } else if (m.failed && !m.ok) {
+        cacheStatusZeigen('⚠️ Kein Bild konnte gespeichert werden', true);
+      } else if (m.failed) {
+        cacheStatusZeigen('Fertig: ' + m.ok + ' / ' + m.total + ' (' + m.failed + ' fehlgeschlagen)', true);
       } else {
-        errMsg='HTTP '+res.status;
+        cacheStatusZeigen('✓ ' + m.ok + (m.ok === 1 ? ' Bild' : ' Bilder') + ' offline verfügbar', true);
       }
-    }catch(e){
-      errMsg=e.message||'unknown';
+      cacheStatusAusblenden(3500);
+
+    } else if (m.type === 'IMAGE_STATUS') {
+      const gesamt = alleBildUrls().length;
+      alert('Offline-Status\n\n' +
+            'Bilder im Katalog: ' + gesamt + '\n' +
+            'Davon offline gespeichert: ' + m.cached + '\n\n' +
+            (m.cached >= gesamt
+              ? '✓ Alles offline verfügbar.'
+              : 'Es fehlen ' + Math.max(0, gesamt - m.cached) + '. Im WLAN auf "Bilder offline speichern" tippen.'));
+
+    } else if (m.type === 'IMAGES_CLEARED') {
+      toast('Bilder-Cache geleert', 'success');
+
+    } else if (m.type === 'UPDATE_READY') {
+      updateHinweisZeigen();
     }
-    if(corsOk){
-      const sizeKB=Math.round(blobSize/1024);
-      line+='  ✅ CORS OK ('+sizeKB+' KB)\n';
-    } else {
-      line+='  ❌ CORS FEHLT: '+errMsg+'\n';
-    }
-    report+=line;
-  }
-  // Test 3: Speicher-Quota
-  report+='\n3️⃣ Speicher:\n';
-  if(navigator.storage&&navigator.storage.estimate){
-    try{
-      const est=await navigator.storage.estimate();
-      const usedMB=(est.usage/1024/1024).toFixed(1);
-      const quotaMB=(est.quota/1024/1024).toFixed(0);
-      report+=usedMB+' MB / '+quotaMB+' MB belegt\n';
-    }catch(e){report+='Status nicht abrufbar\n'}
-  } else {
-    report+='Browser unterstützt das nicht\n';
-  }
-  // Test 4: PWA-Modus check
-  report+='\n4️⃣ Browser-Info:\n';
-  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
-  report+=(isStandalone?'PWA-Modus':'Safari-Browser')+'\n';
-  report+='Online: '+(navigator.onLine?'Ja':'Nein')+'\n';
-  // Test cleanup
-  try{const db=await idbOpen();const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('__diagnose_test__');}catch(e){}
-  console.log('Diagnose:',report);
-  alert(report);
-}
-async function checkCacheStatus(){
-  const allUrls=[];
-  categories.forEach(c=>{if(c.imageUrl)allUrls.push({type:'Kategorie',name:c.name,url:c.imageUrl})});
-  products.forEach(p=>{if(p.imageUrl){
-    const cat=categories.find(c=>c.id===p.categoryId);
-    allUrls.push({type:'Produkt',name:p.name,url:p.imageUrl,catName:cat?cat.name:'?'});
-  }});
-  // IndexedDB als Hauptquelle
-  const stored=new Set(await idbAllKeys());
-  let cachedCount=0;
-  allUrls.forEach(item=>{
-    item.cached=stored.has(item.url);
-    if(item.cached)cachedCount++;
   });
-  const missing=allUrls.filter(i=>!i.cached);
-  // Storage-Estimate für Diagnose
-  let storageInfo='';
-  if(navigator.storage&&navigator.storage.estimate){
-    try{
-      const est=await navigator.storage.estimate();
-      const usedMB=(est.usage/1024/1024).toFixed(1);
-      const quotaMB=(est.quota/1024/1024).toFixed(0);
-      const pct=Math.round(est.usage/est.quota*100);
-      storageInfo='\n\n💾 Speicher: '+usedMB+' MB von '+quotaMB+' MB ('+pct+'%)';
-    }catch(e){}
-  }
-  // Fehlende nach Kategorie gruppieren
-  const missingByCategory={};
-  missing.forEach(m=>{
-    const key=m.type==='Kategorie'?'Kategorien':(m.catName||'Andere');
-    if(!missingByCategory[key])missingByCategory[key]=0;
-    missingByCategory[key]++;
-  });
-  let msg='📊 Offline-Status:\n\n';
-  msg+='✓ Im Speicher: '+cachedCount+' / '+allUrls.length+'\n';
-  msg+='✗ Fehlen: '+missing.length;
-  msg+=storageInfo;
-  if(missing.length>0){
-    msg+='\n\nFehlende pro Kategorie:\n';
-    Object.entries(missingByCategory).sort((a,b)=>b[1]-a[1]).forEach(([cat,count])=>{
-      msg+='• '+cat+': '+count+'\n';
-    });
-  } else {
-    msg+='\n\n✅ Alles offline verfügbar!';
-  }
-  console.log('Cache-Status:',{cached:cachedCount,total:allUrls.length,missingCount:missing.length,missingByCategory});
-  alert(msg);
 }
 
-async function clearImageCache(){
-  if(!confirm('Bilder-Cache wirklich leeren? Bilder werden danach erneut aus dem Netz geladen.'))return;
-  // Service-Worker-Cache leeren
-  if('caches' in window){
-    const keys=await caches.keys();
-    await Promise.all(keys.filter(k=>k.includes('images')).map(k=>caches.delete(k)));
-  }
-  // IndexedDB leeren
-  await idbClearAll();
-  // Blob URLs freigeben
-  _blobUrlCache.forEach(blobUrl=>URL.revokeObjectURL(blobUrl));
-  _blobUrlCache.clear();
-  preloadedUrls.clear();
-  toast('Cache geleert','success');
-}
-
-// Auto-Trigger: prüft regelmäßig ob neue Bilder dazugekommen sind
-let preloadTimer=null;
-function scheduleAutoPreload(delayMs){
-  delayMs=delayMs||3000;
-  if(preloadTimer)clearTimeout(preloadTimer);
-  preloadTimer=setTimeout(()=>preloadImages({showStatus:false}),delayMs);
+/* Nach dem Laden bzw. nach Datenänderungen im Hintergrund nachcachen. */
+let precacheTimer = null;
+function scheduleAutoPreload(delayMs) {
+  if (precacheTimer) clearTimeout(precacheTimer);
+  precacheTimer = setTimeout(() => bilderOfflineSpeichern(false), delayMs || 3000);
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
@@ -965,12 +754,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   updateOnlineState();
   db.collection('categories').orderBy('order','asc').onSnapshot(snap=>{
     categories=snap.docs.map(d=>({id:d.id,...d.data()}));
-    saveCache('bk_cats',categories);renderCategories();renderAdminCategories();updateCategorySelects();updateStats();
+    saveCache('bk_cats',categories);renderCategories();renderAdminCategories();updateCategorySelects();renderZuordnung();updateStats();
     scheduleAutoPreload();
   },e=>console.log('Cat err:',e));
   db.collection('products').orderBy('createdAt','desc').onSnapshot(snap=>{
     products=snap.docs.map(d=>({id:d.id,...d.data()}));
-    saveCache('bk_prods',products);if(currentCategory)renderProducts(currentCategory);renderAdminProducts();updateStats();
+    saveCache('bk_prods',products);if(currentCategory)renderProducts(currentCategory);renderAdminProducts();renderZuordnung();updateStats();
     scheduleAutoPreload();
   },e=>console.log('Prod err:',e));
   auth.onAuthStateChanged(user=>{
@@ -1007,7 +796,7 @@ function renderCategories(){
     const img=cat.imageUrl?'<img src="'+cat.imageUrl+'" alt="'+esc(cat.name)+'" loading="lazy">':'<span>'+(cat.icon||'📁')+'</span>';
     return '<div class="cat-card" onclick="openCategory(\''+cat.id+'\')"><div class="cat-card-img">'+img+'</div><span class="cat-card-count">'+count+' '+(count===1?'Produkt':'Produkte')+'</span><div class="cat-card-body"><h3>'+esc(cat.name)+'</h3><p>'+esc(cat.description||'')+'</p></div></div>';
   }).join('');
-  hydrateOfflineImages(grid);
+
 }
 
 function openCategory(catId){
@@ -1054,14 +843,14 @@ function renderProducts(catId){
     const img=prod.imageUrl?'<img src="'+prod.imageUrl+'" alt="'+esc(prod.name)+'" loading="lazy" decoding="async">':'';
     return '<div class="product-card" onclick="openProductModalById(\''+prod.id+'\')"><div class="product-card-img">'+img+'</div><div class="product-card-body"><h4>'+esc(prod.name)+'</h4>'+(prod.price?'<div class="price">'+esc(prod.price)+'</div>':'')+'</div></div>';
   }).join('');
-  hydrateOfflineImages(grid);
+
 }
 
 async function openProductModalById(prodId){
   const prod=products.find(p=>p.id===prodId);
   if(!prod)return;
   // Bild-URL ggf. durch Blob-URL aus IDB ersetzen für Offline-Funktion
-  const displaySrc=prod.imageUrl?await getOfflineSrc(prod.imageUrl):'';
+  const displaySrc=prod.imageUrl||'';
   document.getElementById('modalImg').innerHTML=prod.imageUrl?'<img src="'+displaySrc+'" alt="'+esc(prod.name)+'" style="cursor:zoom-in" decoding="async">':'';
   var mimg=document.querySelector('#modalImg img');if(mimg){mimg.onclick=function(){openZoom(displaySrc||prod.imageUrl)}};
   document.getElementById('modalTitle').textContent=prod.name;
@@ -1257,7 +1046,7 @@ async function bulkDelete(){
   if(!confirm('Wirklich '+ids.length+' Produkte unwiderruflich löschen?'))return;
   const btn=document.getElementById('bulkDeleteBtn');
   btn.disabled=true;
-  let done=0,errors=0;
+  let done=0;
   // Vorab alle Bild-URLs sammeln
   const itemsToDelete=products.filter(p=>bulkPreviewState.delIds.has(p.id));
   // Firestore-Batches: max 500 pro Batch
@@ -1271,20 +1060,11 @@ async function bulkDelete(){
       done+=slice.length;
       btn.textContent='Lösche… '+done+' / '+ids.length;
     }
-    // Bilder aus Storage löschen (parallel, 4er Batches, Fehler tolerieren)
-    btn.textContent='Lösche Bilder…';
-    const imgs=itemsToDelete.map(p=>p.imageUrl).filter(u=>u&&u.includes('firebasestorage'));
-    let imgDone=0;
-    for(let i=0;i<imgs.length;i+=4){
-      const batch=imgs.slice(i,i+4);
-      await Promise.all(batch.map(url=>
-        storage.refFromURL(url).delete().catch(()=>errors++).finally(()=>{
-          imgDone++;
-          btn.textContent='Lösche Bilder… '+imgDone+' / '+imgs.length;
-        })
-      ));
-    }
-    toast('Fertig: '+done+' Produkte gelöscht'+(errors?' ('+errors+' Bilder konnten nicht gelöscht werden)':''),'success');
+    // Die Bilddateien bleiben bewusst liegen. Zwei Gründe: Dasselbe Bild kann an
+    // mehreren Produkten hängen (im Katalog gibt es Dubletten wie 2/80F oder 9100),
+    // und ein versehentliches Bulk-Löschen wäre sonst endgültig. Über den
+    // Bild-Picker sind sie weiter erreichbar und lassen sich wiederverwenden.
+    toast('Fertig: '+done+' Produkte gelöscht','success');
     document.getElementById('bulkPreviewSection').style.display='none';
     document.getElementById('bulkConfirmSection').style.display='none';
     bulkPreviewState={keepIds:new Set(),delIds:new Set(),catId:null};
@@ -1460,27 +1240,188 @@ function renderAdminProducts(){
   }).join('');
 }
 
+/* ===== Bild-Zuordnung ===== */
+function renderZuordnung(){
+  const grid=document.getElementById('zuordnungGrid');if(!grid)return;
+  const fc=document.getElementById('zuordnungFilterCat')?.value||'';
+  const list=fc?products.filter(p=>p.categoryId===fc):products;
+  const info=document.getElementById('zuordnungInfo');
+  const without=list.filter(p=>!p.imageUrl).length;
+  if(info)info.textContent=list.length+' Produkte · '+without+' ohne Bild';
+  if(!list.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:2rem">Keine Produkte in dieser Auswahl.</div>';return}
+  const sorted=[...list].sort((a,b)=>(a.imageUrl?1:0)-(b.imageUrl?1:0));
+  grid.innerHTML=sorted.map(p=>{
+    const cat=categories.find(c=>c.id===p.categoryId);
+    const imgHtml=p.imageUrl?'<img src="'+p.imageUrl+'" loading="lazy" alt="'+esc(p.name)+'">':'<div class="zuordnung-noimg">📷<br>kein Bild</div>';
+    return '<div class="zuordnung-card'+(p.imageUrl?'':' missing')+'">'+
+      '<div class="zuordnung-imgwrap">'+imgHtml+'</div>'+
+      '<div class="zuordnung-meta"><div class="zuordnung-name">'+esc(p.name)+'</div>'+
+      '<div class="zuordnung-sub">'+(cat?esc(cat.name):'–')+(p.price?' · '+esc(p.price):'')+'</div></div>'+
+      '<button class="btn btn-sm '+(p.imageUrl?'btn-outline':'btn-gold')+'" onclick="openImagePicker(\''+p.id+'\')">'+(p.imageUrl?'Bild ändern':'Bild wählen')+'</button>'+
+      '</div>';
+  }).join('');
+}
+let _storageImgCache=null,_pickerProdId=null;
+async function loadStorageImages(force){
+  if(_storageImgCache&&!force)return _storageImgCache;
+  if(!currentUser)return [];
+  try{
+    const idToken=await currentUser.getIdToken();
+    const res=await fetch('/api/images',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({idToken})
+    });
+    const antwort=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(antwort.error||('HTTP '+res.status));
+    _storageImgCache=antwort.bilder||[];
+    return _storageImgCache;
+  }catch(e){
+    console.log('Bildliste:',e.message);
+    toast('Bildliste konnte nicht geladen werden','error');
+    return [];
+  }
+}
+async function openImagePicker(prodId){
+  const prod=products.find(p=>p.id===prodId);if(!prod)return;
+  _pickerProdId=prodId;
+  document.getElementById('pickerTitle').textContent='Bild wählen · '+prod.name;
+  document.getElementById('pickerModal').classList.add('active');document.body.style.overflow='hidden';
+  const grid=document.getElementById('pickerGrid');
+  grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted)"><span class="mini-spin"></span> Bilder werden geladen…</div>';
+  const imgs=await loadStorageImages();
+  renderPickerGrid(imgs,prod.imageUrl);
+}
+function renderPickerGrid(imgs,currentUrl){
+  const grid=document.getElementById('pickerGrid');
+  if(!imgs.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted)">Keine Bilder im Speicher gefunden.</div>';return}
+  grid.innerHTML=imgs.map((im,i)=>{
+    const cur=currentUrl&&im.url===currentUrl;
+    return '<button class="picker-thumb'+(cur?' current':'')+'" onclick="assignImage('+i+')" title="'+esc(im.name)+'">'+
+      '<img src="'+im.url+'" loading="lazy" alt="'+esc(im.name)+'">'+(cur?'<span class="picker-badge">✓ Aktuell</span>':'')+'</button>';
+  }).join('');
+}
+async function assignImage(idx){
+  if(_pickerProdId==null)return;
+  const im=_storageImgCache&&_storageImgCache[idx];if(!im)return;
+  try{
+    await db.collection('products').doc(_pickerProdId).update({imageUrl:im.url});
+    toast('Bild zugeordnet!','success');closeImagePicker();
+  }catch(e){toast('Fehler beim Speichern','error');console.log(e)}
+}
+async function refreshPickerImages(){
+  const grid=document.getElementById('pickerGrid');
+  grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted)"><span class="mini-spin"></span> Aktualisiere…</div>';
+  const prod=products.find(p=>p.id===_pickerProdId);
+  const imgs=await loadStorageImages(true);
+  renderPickerGrid(imgs,prod?prod.imageUrl:'');
+}
+async function uploadFromPicker(input){
+  if(!input.files[0]||_pickerProdId==null)return;
+  toast('Bild wird hochgeladen…');
+  try{
+    const url=await uploadImage(input.files[0],'products');
+    await db.collection('products').doc(_pickerProdId).update({imageUrl:url});
+    _storageImgCache=null;
+    toast('Bild hochgeladen & zugeordnet!','success');closeImagePicker();
+  }catch(e){toast('Upload fehlgeschlagen','error');console.log(e)}
+  input.value='';
+}
+async function removeImageFromProd(){
+  if(_pickerProdId==null)return;
+  if(!confirm('Bild von diesem Produkt entfernen? (Das Bild bleibt im Speicher und kann neu zugeordnet werden.)'))return;
+  try{await db.collection('products').doc(_pickerProdId).update({imageUrl:''});toast('Bild entfernt');closeImagePicker();}catch(e){toast('Fehler','error')}
+}
+function closeImagePicker(){document.getElementById('pickerModal').classList.remove('active');document.body.style.overflow='';_pickerProdId=null;}
 function updateCategorySelects(){
-  ['prodCat','prodFilterCat','bulkCategory'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const val=sel.value;const isF=id==='prodFilterCat';const isB=id==='bulkCategory';sel.innerHTML=(isF?'<option value="">Alle</option>':(isB?'<option value="">Kategorie wählen…</option>':'<option value="">Kategorie wählen…</option>'))+categories.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');sel.value=val});
+  ['prodCat','prodFilterCat','bulkCategory','zuordnungFilterCat'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const val=sel.value;const isF=id==='prodFilterCat'||id==='zuordnungFilterCat';const isB=id==='bulkCategory';sel.innerHTML=(isF?'<option value="">Alle</option>':(isB?'<option value="">Kategorie wählen…</option>':'<option value="">Kategorie wählen…</option>'))+categories.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');sel.value=val});
 }
 function switchAdminTab(tab,btn){
   document.querySelectorAll('.admin-tab-content').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.admin-tabs button').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');btn.classList.add('active');
+  if(tab==='zuordnung')renderZuordnung();
 }
 function updateStats(){
   const el=document.getElementById('adminStats');if(!el)return;
   const sc=categories.reduce((n,c)=>n+(c.subcategories?c.subcategories.length:0),0);
   el.innerHTML='<div class="stat-card"><div class="num">'+categories.length+'</div><div class="label">Kategorien</div></div><div class="stat-card"><div class="num">'+sc+'</div><div class="label">Unterkategorien</div></div><div class="stat-card"><div class="num">'+products.length+'</div><div class="label">Produkte</div></div><div class="stat-card"><div class="num">'+products.filter(p=>p.imageUrl).length+'</div><div class="label">Mit Bild</div></div>';
 }
+/* === BILD-UPLOAD ===
+ * Ab v2 nach Vercel Blob statt Firebase Storage. Der Ablauf:
+ *   1. Im Browser auf WebP umrechnen (aus ~1,7 MB PNG werden ~100–300 KB)
+ *   2. Als base64 an /api/upload schicken, zusammen mit dem Firebase-ID-Token
+ *   3. Zurück kommt ein Pfad wie /img/produkte/... auf der eigenen Domain
+ *
+ * Die Komprimierung ist nicht nur Kosmetik: Erst dadurch passt der komplette
+ * Katalog in den Offline-Cache eines iPads, ohne dass Safari ihn wieder wegräumt.
+ */
+const MAX_KANTE=1600;      // längste Bildkante in Pixeln
+const WEBP_QUALITAET=0.82;
+
 async function uploadImage(file,folder){
-  const ts=Date.now(),ext=file.name.split('.').pop();
-  const ref=storage.ref(folder+'/'+ts+'.'+ext);
-  let f=file;if(file.size>1024*1024)f=await compressImage(file,0.7,1200);
-  const snap=await ref.put(f);return await snap.ref.getDownloadURL();
+  if(!currentUser)throw new Error('Nicht angemeldet.');
+
+  const {blob,typ}=await bildAufbereiten(file);
+  const base64=await blobAlsBase64(blob);
+  const idToken=await currentUser.getIdToken();
+
+  const res=await fetch('/api/upload',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({idToken,filename:file.name,contentType:typ,data:base64})
+  });
+  const antwort=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(antwort.error||('Upload fehlgeschlagen (HTTP '+res.status+')'));
+  return antwort.url;
 }
-function compressImage(file,quality,maxW){
-  return new Promise(resolve=>{const reader=new FileReader();reader.onload=e=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');let w=img.width,h=img.height;if(w>maxW){h=h*maxW/w;w=maxW}c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(resolve,'image/jpeg',quality)};img.src=e.target.result};reader.readAsDataURL(file)});
+
+/* Rechnet ein Bild auf WebP herunter. Fällt auf die Originaldatei zurück,
+   wenn der Browser kein WebP schreiben kann (sehr alte iOS-Versionen). */
+async function bildAufbereiten(file){
+  try{
+    const bild=await dateiAlsBild(file);
+    let w=bild.naturalWidth,h=bild.naturalHeight;
+    if(Math.max(w,h)>MAX_KANTE){
+      const f=MAX_KANTE/Math.max(w,h);
+      w=Math.round(w*f);h=Math.round(h*f);
+    }
+    const c=document.createElement('canvas');
+    c.width=w;c.height=h;
+    const ctx=c.getContext('2d');
+    // Produktbilder sind oft freigestellt – Transparenz muss erhalten bleiben,
+    // deshalb WebP und nicht JPEG (das war in v1 der Grund für graue Kästen).
+    ctx.drawImage(bild,0,0,w,h);
+    const blob=await new Promise(r=>c.toBlob(r,'image/webp',WEBP_QUALITAET));
+    if(blob&&blob.size>0&&blob.type==='image/webp')return {blob,typ:'image/webp'};
+  }catch(e){
+    console.log('WebP-Umwandlung nicht möglich, nehme Original:',e.message);
+  }
+  const typ=['image/png','image/jpeg','image/webp'].includes(file.type)?file.type:'image/jpeg';
+  return {blob:file,typ};
+}
+
+function dateiAlsBild(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Datei ist kein lesbares Bild'))};
+    img.src=url;
+  });
+}
+
+function blobAlsBase64(blob){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      const s=String(r.result);
+      const komma=s.indexOf(',');
+      resolve(komma>-1?s.slice(komma+1):s);
+    };
+    r.onerror=()=>reject(new Error('Datei konnte nicht gelesen werden'));
+    r.readAsDataURL(blob);
+  });
 }
 function previewFile(input,id){const p=document.getElementById(id);if(input.files[0]){const r=new FileReader();r.onload=e=>{p.src=e.target.result;p.style.display='block'};r.readAsDataURL(input.files[0])}else p.style.display='none'}
 function toast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type;setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>t.classList.remove('show'),3000)}
@@ -1492,16 +1433,16 @@ function onSearch(){
   var clr=document.getElementById('searchClear');
   clr.classList.toggle('visible',q.length>0);
   if(q.length<1){res.classList.remove('open');return}
-  var catMatches=categories.filter(function(c){return c.name.toLowerCase().indexOf(q)>-1||(c.description||'').toLowerCase().indexOf(q)>-1});
+  var catMatches=categories.filter(function(c){return (c.name||'').toLowerCase().indexOf(q)>-1||(c.description||'').toLowerCase().indexOf(q)>-1});
   var subcatMatches=[];
   categories.forEach(function(cat){
     if(cat.subcategories&&cat.subcategories.length){
       cat.subcategories.forEach(function(sc){
-        if(sc.toLowerCase().indexOf(q)>-1){subcatMatches.push({catId:cat.id,catName:cat.name,catIcon:cat.icon,catImg:cat.imageUrl,subcat:sc})}
+        if(String(sc||'').toLowerCase().indexOf(q)>-1){subcatMatches.push({catId:cat.id,catName:cat.name,catIcon:cat.icon,catImg:cat.imageUrl,subcat:sc})}
       });
     }
   });
-  var prodMatches=products.filter(function(p){return p.name.toLowerCase().indexOf(q)>-1||(p.description||'').toLowerCase().indexOf(q)>-1||(p.subcategory||'').toLowerCase().indexOf(q)>-1}).slice(0,10);
+  var prodMatches=products.filter(function(p){return (p.name||'').toLowerCase().indexOf(q)>-1||(p.description||'').toLowerCase().indexOf(q)>-1||(p.subcategory||'').toLowerCase().indexOf(q)>-1}).slice(0,10);
   if(!catMatches.length&&!subcatMatches.length&&!prodMatches.length){res.innerHTML='<div class="sr-no-results">Keine Ergebnisse für \u201e'+esc(q)+'\u201c</div>';res.classList.add('open');return}
   var html='';
   if(catMatches.length){

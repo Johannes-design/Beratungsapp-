@@ -1,0 +1,9 @@
+{"exportiert":"2026-09-08T07:23:19.666Z","hinweis":"Vollstaendiger Export aus Firestore (via localStorage-Cache der Live-App). 6 Kategorien, 83 Produkte. Alle imageUrl zeigen auf Firebase Storage und liefern zum Exportzeitpunkt HTTP 402 (Billing geschlossen).",
+"categories":[
+{"id":"gdUkjyhUJF2ufFVv8wPX","name":"Särge","description":"","icon":"📁","subcategories":["Kremationssärge","Erdsärge"],"order":0,"imageUrl":"","hasSubcategories":true},
+{"id":"S2dESnuz8JWURVWFNJJy","name":"Decken","description":"","order":1,"icon":"📁","imageUrl":""},
+{"id":"QA5Wz7SI5AG0I5Xt5MkZ","name":"Friedhöfe","description":"","order":2,"icon":"📁","imageUrl":"","hasSubcategories":true,"subcategories":["Zentralfriedhof","Prohn","Pütte","Velgast","Niepars","Altefähr","Schlosskapelle Parow","Brandshagen","Rambin","Elmenhorst","Groß Mohrdorf","Katholischer Friedhof","Abtshagen","Steinhagen","Ruheforst","Friedwald"]},
+{"id":"OJHmxENAvWLVLbcwlNIc","name":"Blumen","description":"","order":3,"icon":"📁","imageUrl":"","hasSubcategories":true,"subcategories":["Urnenschmuck"]},
+{"id":"yLnQfkKXosNmBNBabhzM","name":"Urnen","description":"","order":4,"icon":"📁","imageUrl":"","hasSubcategories":true,"subcategories":["Urnen","Seeurnen","Beliebte Urnen","Naturstoffurnen","Holzurnen","Metallurnen"]},
+{"id":"VXHEfzjeuSm4zNOOEyLt","name":"Seebestattung","description":"","order":5,"icon":"⛴️","imageUrl":"","hasSubcategories":true,"subcategories":[]}
+]}

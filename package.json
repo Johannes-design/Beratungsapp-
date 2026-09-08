@@ -1,0 +1,10 @@
+{
+  "name": "kallwass-beratungsapp",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Digitale Beratungsmappe für Trauergespräche – Bestattungshaus Kallwaß",
+  "type": "module",
+  "dependencies": {
+    "@vercel/blob": "^1.0.0"
+  }
+}
