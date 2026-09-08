@@ -98,6 +98,12 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem}
 .subcat-pill{padding:0.7rem 1.4rem;border-radius:24px;border:1.5px solid var(--warm-gray);background:var(--warm-white);font-family:var(--font-body);font-size:0.92rem;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-muted);-webkit-tap-highlight-color:transparent;box-shadow:var(--shadow-sm);white-space:nowrap;flex-shrink:0}
 .subcat-pill:hover,.subcat-pill:active{border-color:var(--bordeaux);color:var(--bordeaux);box-shadow:var(--shadow-md)}
 .subcat-pill.active{background:var(--bordeaux);color:var(--cream);border-color:var(--bordeaux);box-shadow:var(--shadow-md)}
+.subcat-wahl{display:flex;align-items:center;gap:0.75rem;width:100%;flex-wrap:wrap}
+.subcat-wahl label{font-size:0.8rem;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;color:var(--text-light);flex-shrink:0}
+.subcat-wahl select{flex:1;min-width:200px;padding:0.75rem 1rem;border-radius:24px;border:1.5px solid var(--warm-gray);background:var(--warm-white);font-family:var(--font-body);font-size:0.95rem;font-weight:500;color:var(--text-dark);cursor:pointer;box-shadow:var(--shadow-sm);-webkit-tap-highlight-color:transparent}
+.subcat-wahl select:focus{outline:2px solid var(--gold);outline-offset:1px}
+.subcat-wahl select.gewaehlt{background:var(--bordeaux);color:var(--cream);border-color:var(--bordeaux)}
+.subcat-zurueck{padding:0.7rem 1.1rem;border-radius:24px;border:1.5px solid var(--warm-gray);background:var(--warm-white);font-family:var(--font-body);font-size:0.88rem;font-weight:500;color:var(--text-muted);cursor:pointer;white-space:nowrap;box-shadow:var(--shadow-sm)}
 .products-header{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
 .back-btn{background:none;border:1px solid var(--warm-gray);color:var(--text-dark);padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-family:var(--font-body);font-size:0.85rem;transition:var(--transition);display:flex;align-items:center;gap:0.4rem;-webkit-tap-highlight-color:transparent}
 .back-btn:hover{border-color:var(--bordeaux);color:var(--bordeaux)}
@@ -905,22 +911,70 @@ function renderCategories(){
 
 }
 
+/* Ab wie vielen Unterkategorien statt der Knopfreihe eine Auswahlliste erscheint.
+   Die Friedhöfe haben 16 Orte – als Knöpfe füllten die auf dem Telefon sechs
+   Zeilen, und das erste Bild lag unterhalb des sichtbaren Bereichs. */
+const VIELE_UNTERKATEGORIEN=8;
+
 function openCategory(catId){
   currentCategory=catId;currentSubcatFilter=null;
   const cat=categories.find(c=>c.id===catId);
   document.getElementById('productsTitle').textContent=cat?cat.name:'Produkte';
   const bar=document.getElementById('subcategoryBar');
-  if(cat&&cat.subcategories&&cat.subcategories.length>0){
-    let html='';
-    cat.subcategories.forEach(sc=>{
-      html+='<button class="subcat-pill" onclick="filterSubcat(\''+esc(sc).replace(/'/g,"\\'")+'\',this)">'+esc(sc)+'</button>';
-    });
-    bar.innerHTML=html;
-    bar.classList.add('visible');
-  } else {
-    bar.innerHTML='';bar.classList.remove('visible');
+  bar.innerHTML='';
+  const subs=(cat&&cat.subcategories)||[];
+
+  if(!subs.length){
+    bar.classList.remove('visible');
+    renderProducts(catId);navTo('products');
+    return;
   }
+
+  if(subs.length>VIELE_UNTERKATEGORIEN){
+    // Auswahlliste – über das DOM aufgebaut, damit Namen mit Anführungszeichen
+    // oder Apostrophen nichts zerlegen.
+    const huelle=document.createElement('div');
+    huelle.className='subcat-wahl';
+    const label=document.createElement('label');
+    label.setAttribute('for','subcatWahl');
+    label.textContent='Auswahl';
+    const sel=document.createElement('select');
+    sel.id='subcatWahl';
+    const alle=document.createElement('option');
+    alle.value='';
+    alle.textContent='Alle anzeigen ('+products.filter(p=>p.categoryId===catId).length+')';
+    sel.appendChild(alle);
+    subs.forEach(sc=>{
+      const o=document.createElement('option');
+      o.value=sc;
+      const n=products.filter(p=>p.categoryId===catId&&p.subcategory===sc).length;
+      o.textContent=sc+(n?'  ('+n+')':'  (–)');
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change',()=>filterSubcatWahl(sel.value));
+    huelle.appendChild(label);huelle.appendChild(sel);
+    bar.appendChild(huelle);
+  } else {
+    subs.forEach(sc=>{
+      const b=document.createElement('button');
+      b.className='subcat-pill';
+      b.textContent=sc;
+      b.addEventListener('click',()=>filterSubcat(sc,b));
+      bar.appendChild(b);
+    });
+  }
+  bar.classList.add('visible');
   renderProducts(catId);navTo('products');
+}
+
+/* Auswahl über die Liste (viele Unterkategorien). */
+function filterSubcatWahl(wert){
+  currentSubcatFilter=wert||null;
+  const sel=document.getElementById('subcatWahl');
+  if(sel)sel.classList.toggle('gewaehlt',!!wert);
+  renderProducts(currentCategory);
+  const grid=document.getElementById('productsGrid');
+  if(grid)grid.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function filterSubcat(subcat,btn){
@@ -2035,16 +2089,21 @@ function onSearch(){
 }
 function clearSearch(){document.getElementById('searchInput').value='';document.getElementById('searchResults').classList.remove('open');document.getElementById('searchClear').classList.remove('visible')}
 function selectSearchSubcat(catId,subName){
-  clearSearch();currentCategory=catId;currentSubcatFilter=subName;
-  var cat=categories.find(function(c){return c.id===catId});
-  document.getElementById('productsTitle').textContent=cat?cat.name:'Produkte';
-  var bar=document.getElementById('subcategoryBar');
-  if(cat&&cat.subcategories&&cat.subcategories.length>0){
-    var bhtml='';
-    cat.subcategories.forEach(function(sc){bhtml+='<button class="subcat-pill'+(sc===subName?' active':'')+'" onclick="filterSubcat(\''+esc(sc).replace(/'/g,"\\'")+'\',this)">'+esc(sc)+'</button>'});
-    bar.innerHTML=bhtml;bar.classList.add('visible');
-  }else{bar.innerHTML='';bar.classList.remove('visible')}
-  renderProducts(catId);navTo('products');
+  clearSearch();
+  // Kategorie regulär öffnen – so entsteht dieselbe Leiste wie beim normalen Weg
+  // (Knöpfe oder Auswahlliste, je nach Anzahl) und die Logik steht nur an einer Stelle.
+  openCategory(catId);
+  currentSubcatFilter=subName;
+  const sel=document.getElementById('subcatWahl');
+  if(sel){
+    sel.value=subName;
+    sel.classList.add('gewaehlt');
+  } else {
+    document.querySelectorAll('.subcat-pill').forEach(function(p){
+      p.classList.toggle('active',p.textContent===subName);
+    });
+  }
+  renderProducts(catId);
 }
 function selectSearchCat(catId){clearSearch();openCategory(catId)}
 function selectSearchProd(catId,prodId){
