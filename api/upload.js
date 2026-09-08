@@ -20,6 +20,7 @@
  */
 
 import { put } from '@vercel/blob';
+import { blobAuth } from './_blob-auth.js';
 
 const FIREBASE_API_KEY = 'AIzaSyDzxxj-kK4eo2RgW-ZQt26cJzHGRs75WbQ';
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -88,7 +89,8 @@ export default async function handler(req, res) {
     const blob = await put(pfad, buffer, {
       access: 'public',
       contentType,
-      addRandomSuffix: true
+      addRandomSuffix: true,
+      ...blobAuth()
     });
 
     // put() liefert die fertige öffentliche URL zurück. Die wird direkt in

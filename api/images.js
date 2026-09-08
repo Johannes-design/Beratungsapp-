@@ -11,6 +11,7 @@
  */
 
 import { list } from '@vercel/blob';
+import { blobAuth } from './_blob-auth.js';
 
 const FIREBASE_API_KEY = 'AIzaSyDzxxj-kK4eo2RgW-ZQt26cJzHGRs75WbQ';
 
@@ -46,7 +47,7 @@ export default async function handler(req, res) {
 
     // Alle Seiten einsammeln. Bei einem Katalog dieser Größe sind das ein bis zwei.
     do {
-      const seite = await list({ limit: 1000, cursor });
+      const seite = await list({ limit: 1000, cursor, ...blobAuth() });
       for (const b of seite.blobs) {
         bilder.push({
           url: b.url,
