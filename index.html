@@ -430,7 +430,12 @@ footer a{color:var(--gold-dark);text-decoration:none}footer a:hover{text-decorat
             <p><strong>Bilder hierher ziehen</strong> oder klicken zum Auswählen</p>
             <span>Mehrere gleichzeitig möglich · JPG, PNG, WebP</span>
           </div>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.8rem">
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('stapelOrdner').click()">📂 Ganzen Ordner wählen</button>
+            <span style="font-size:0.78rem;color:var(--text-light);align-self:center">Unterordner werden als Unterkategorie gelesen — z.&nbsp;B. <code>Prohn/Kapelle.jpg</code></span>
+          </div>
           <input type="file" id="stapelInput" accept="image/*" multiple style="display:none" onchange="stapelDateienWaehlen(this.files)">
+          <input type="file" id="stapelOrdner" webkitdirectory directory multiple style="display:none" onchange="stapelDateienWaehlen(this.files)">
 
           <div id="stapelBereich" style="display:none">
             <div class="stapel-kopf">
@@ -1579,21 +1584,53 @@ function stapelDrop(ev){
   if(dt&&dt.files&&dt.files.length)stapelDateienWaehlen(dt.files);
 }
 
+/* Ordnername -> Unterkategorie. Wird ein Ordner ausgewählt, steckt der Weg in
+   webkitRelativePath ("Friedhofsbilder/Prohn/Kapelle.jpg"). Der direkt über der
+   Datei liegende Ordner ist die Unterkategorie – so entsteht aus der Ablage auf
+   der Festplatte die Struktur in der App, ohne dass jemand etwas eintippt. */
+function unterkategorieZuOrdner(ordner){
+  if(!ordner)return null;
+  const gesucht=normVarianten(ordner);
+  for(const kat of categories){
+    for(const sub of (kat.subcategories||[])){
+      for(const v of normVarianten(sub)){
+        if(gesucht.has(v))return {catId:kat.id,katName:kat.name,subcat:sub};
+      }
+    }
+  }
+  return null;
+}
+
 function stapelDateienWaehlen(fileList){
   const neue=Array.from(fileList||[]).filter(f=>f.type.startsWith('image/'));
   if(!neue.length)return toast('Keine Bilddateien dabei','error');
   neue.forEach(f=>{
+    const pfad=f.webkitRelativePath||'';
+    const teile=pfad.split('/').filter(Boolean);
+    const ordner=teile.length>1?teile[teile.length-2]:'';
     const treffer=produkteZuDateiname(f.name);
+    const ziel=unterkategorieZuOrdner(ordner);
+
+    // Vorbelegung: vorhandenes Produkt schlägt alles. Sonst, wenn der Ordner eine
+    // bekannte Unterkategorie ist, ein neuer Eintrag. Sonst nur ablegen.
+    let aktion;
+    if(treffer.length)aktion={typ:'zuordnen',ids:treffer.map(p=>p.id)};
+    else if(ziel)aktion={typ:'neu',catId:ziel.catId,subcat:ziel.subcat};
+    else aktion={typ:'nur'};
+
     stapelDateien.push({
       id:'s'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
       datei:f,
+      ordner:ordner,
+      ziel:ziel,
       vorschau:URL.createObjectURL(f),
-      produktIds:treffer.map(p=>p.id),
+      aktion:aktion,
       status:'wartet',
       meldung:''
     });
   });
   document.getElementById('stapelInput').value='';
+  document.getElementById('stapelOrdner').value='';
   renderStapel();
 }
 
@@ -1607,8 +1644,28 @@ function stapelLeeren(){
 function stapelZuordnungAendern(id,wert){
   const eintrag=stapelDateien.find(s=>s.id===id);
   if(!eintrag)return;
-  eintrag.produktIds=wert?[wert]:[];
+  if(wert==='')eintrag.aktion={typ:'nur'};
+  else if(wert.startsWith('neu:')){
+    const [,catId,subcat]=wert.split(':');
+    eintrag.aktion={typ:'neu',catId:catId,subcat:subcat||''};
+  }
+  else eintrag.aktion={typ:'zuordnen',ids:[wert]};
   renderStapel();
+}
+
+/* Beschreibt in einem Satz, was mit dieser Datei passieren wird. */
+function stapelBeschreibung(s){
+  const a=s.aktion;
+  if(a.typ==='zuordnen'){
+    if(a.ids.length>1)return {klasse:'gut',text:'erkannt · '+a.ids.length+' Produkte mit diesem Namen'};
+    const p=products.find(x=>x.id===a.ids[0]);
+    return {klasse:'gut',text:'erkannt: '+(p?p.name:'?')};
+  }
+  if(a.typ==='neu'){
+    const k=categories.find(c=>c.id===a.catId);
+    return {klasse:'gut',text:'wird neu angelegt: „'+dateinameOhneEndung(s.datei.name)+'" in '+(k?k.name:'?')+(a.subcat?' / '+a.subcat:'')};
+  }
+  return {klasse:'warn',text:'wird nur hochgeladen – kein Eintrag'};
 }
 
 function renderStapel(){
@@ -1620,48 +1677,62 @@ function renderStapel(){
   if(!stapelDateien.length){bereich.style.display='none';liste.innerHTML='';return}
   bereich.style.display='block';
 
-  const erkannt=stapelDateien.filter(s=>s.produktIds.length).length;
+  const zugeordnet=stapelDateien.filter(s=>s.aktion.typ==='zuordnen').length;
+  const neuAnlegen=stapelDateien.filter(s=>s.aktion.typ==='neu').length;
+  const offen=stapelDateien.length-zugeordnet-neuAnlegen;
   info.innerHTML='<strong>'+stapelDateien.length+'</strong> Bilder · '+
-                 erkannt+' automatisch erkannt · '+
-                 (stapelDateien.length-erkannt)+' brauchen deine Zuordnung';
+                 zugeordnet+' vorhandenen zugeordnet · '+
+                 neuAnlegen+' neue Einträge · '+
+                 offen+' ohne Zuordnung';
 
-  // Auswahlliste einmal bauen statt pro Zeile – bei 83 Produkten sonst spürbar träge.
-  const optionen=products.slice()
+  // Auswahlliste einmal bauen statt pro Zeile – bei 84 Produkten sonst spürbar träge.
+  const produktOptionen=products.slice()
     .sort((a,b)=>(a.name||'').localeCompare(b.name||''))
     .map(p=>{
       const k=categories.find(c=>c.id===p.categoryId);
       return '<option value="'+p.id+'">'+esc(p.name)+(k?' — '+esc(k.name):'')+'</option>';
     }).join('');
 
+  // "Neu anlegen" für jede Unterkategorie, damit sich auch ohne passenden
+  // Ordnernamen ein Eintrag erzeugen lässt.
+  let neuOptionen='';
+  categories.forEach(k=>{
+    const subs=(k.subcategories&&k.subcategories.length)?k.subcategories:[''];
+    subs.forEach(sub=>{
+      neuOptionen+='<option value="neu:'+k.id+':'+esc(sub)+'">➕ '+esc(k.name)+(sub?' / '+esc(sub):'')+'</option>';
+    });
+  });
+
   liste.innerHTML=stapelDateien.map(s=>{
-    let klasse='',statusKlasse='',statusText;
-    if(s.status==='fertig'){klasse='ok';statusKlasse='gut';statusText='✓ '+s.meldung}
-    else if(s.status==='fehler'){klasse='fehler';statusKlasse='schlecht';statusText='✗ '+s.meldung}
-    else if(s.status==='laeuft'){statusText='wird hochgeladen…'}
-    else if(s.produktIds.length>1){statusKlasse='gut';statusText='erkannt · '+s.produktIds.length+' Produkte mit diesem Namen'}
-    else if(s.produktIds.length===1){
-      const p=products.find(x=>x.id===s.produktIds[0]);
-      statusKlasse='gut';statusText='erkannt: '+(p?p.name:'?');
-    }
-    else{statusKlasse='warn';statusText='kein Produkt erkannt – bitte wählen'}
+    let klasse='',stat;
+    if(s.status==='fertig'){klasse='ok';stat={klasse:'gut',text:'✓ '+s.meldung}}
+    else if(s.status==='fehler'){klasse='fehler';stat={klasse:'schlecht',text:'✗ '+s.meldung}}
+    else if(s.status==='laeuft'){stat={klasse:'',text:'wird hochgeladen…'}}
+    else stat=stapelBeschreibung(s);
 
     const auswahl=(s.status==='fertig')?'':
       '<select class="sz-wahl" onchange="stapelZuordnungAendern(\''+s.id+'\',this.value)">'+
-      '<option value="">– nicht zuordnen, nur hochladen –</option>'+optionen+'</select>';
+      '<option value="">– nur hochladen, kein Eintrag –</option>'+
+      '<optgroup label="Neuen Eintrag anlegen">'+neuOptionen+'</optgroup>'+
+      '<optgroup label="Vorhandenem Produkt zuordnen">'+produktOptionen+'</optgroup>'+
+      '</select>';
+
+    const ordnerHinweis=s.ordner?'<div class="sz-status">aus Ordner: '+esc(s.ordner)+'</div>':'';
 
     return '<div class="stapel-zeile '+klasse+'">'+
       '<img class="sz-bild" src="'+s.vorschau+'" alt="">'+
       '<div><div class="sz-name">'+esc(s.datei.name)+'</div>'+
-      '<div class="sz-status '+statusKlasse+'">'+esc(statusText)+'</div></div>'+
+      '<div class="sz-status '+stat.klasse+'">'+esc(stat.text)+'</div>'+ordnerHinweis+'</div>'+
       auswahl+'</div>';
   }).join('');
 
-  // Vorauswahl in den Auswahlfeldern setzen (geht in HTML-Strings nicht zuverlässig).
+  // Vorauswahl setzen – im HTML-String lässt sich "selected" nicht zuverlässig treffen.
   stapelDateien.forEach((s,i)=>{
-    if(s.produktIds.length===1){
-      const sel=liste.children[i]&&liste.children[i].querySelector('select');
-      if(sel)sel.value=s.produktIds[0];
-    }
+    const sel=liste.children[i]&&liste.children[i].querySelector('select');
+    if(!sel)return;
+    if(s.aktion.typ==='zuordnen'&&s.aktion.ids.length===1)sel.value=s.aktion.ids[0];
+    else if(s.aktion.typ==='neu')sel.value='neu:'+s.aktion.catId+':'+s.aktion.subcat;
+    else sel.value='';
   });
 }
 
@@ -1685,14 +1756,29 @@ async function stapelHochladen(){
     text.textContent='Bild '+(fertig+1)+' von '+offen.length+': '+s.datei.name;
     try{
       const url=await uploadImage(s.datei,'products');
-      // Dasselbe Bild kann an mehreren Produkten hängen (doppelte Artikelnummern).
-      for(const pid of s.produktIds){
-        await db.collection('products').doc(pid).update({imageUrl:url});
+      const a=s.aktion;
+      if(a.typ==='zuordnen'){
+        // Dasselbe Bild kann an mehreren Produkten hängen (doppelte Artikelnummern).
+        for(const pid of a.ids){
+          await db.collection('products').doc(pid).update({imageUrl:url});
+        }
+        s.meldung=a.ids.length>1?('zugeordnet ('+a.ids.length+' Produkte)'):'zugeordnet';
+      } else if(a.typ==='neu'){
+        const daten={
+          categoryId:a.catId,
+          name:dateinameOhneEndung(s.datei.name),
+          price:'',
+          description:'',
+          imageUrl:url,
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if(a.subcat)daten.subcategory=a.subcat;
+        await db.collection('products').add(daten);
+        s.meldung='neu angelegt';
+      } else {
+        s.meldung='hochgeladen, keinem Eintrag zugeordnet';
       }
       s.status='fertig';
-      s.meldung=s.produktIds.length
-        ? 'zugeordnet ('+s.produktIds.length+')'
-        : 'hochgeladen, noch keinem Produkt zugeordnet';
     }catch(e){
       s.status='fehler';
       s.meldung=(e&&e.message)||'unbekannter Fehler';
